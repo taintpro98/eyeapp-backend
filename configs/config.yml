@@ -2,14 +2,14 @@
 # Secrets (DATABASE_URL, JWT_SECRET) are loaded from environment variables only
 
 app:
-  env: development          # development, staging, production
+  env: development # development, staging, production
   port: "8080"
   service_name: alumieye-api
 
 server:
   access_token_ttl_minutes: 15
-  refresh_token_ttl_hours: 720   # 30 days
+  refresh_token_ttl_hours: 720 # 30 days
 
 logging:
-  level: info               # debug, info, warn, error
-  format: ""                # json, console. Empty = auto from app.env
+  level: info # debug, info, warn, error
+  format: "json" # json, console. Empty = auto from app.env
