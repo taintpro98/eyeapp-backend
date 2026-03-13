@@ -29,8 +29,9 @@ WORKDIR /app
 # Copy the binary from builder
 COPY --from=builder /app/api .
 
-# Copy migrations
+# Copy migrations and config
 COPY --from=builder /app/migrations ./migrations
+COPY --from=builder /app/configs ./configs
 
 # Expose port
 EXPOSE 8080

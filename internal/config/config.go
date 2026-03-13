@@ -2,9 +2,38 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
+
+// appConfig holds app-level settings from config.yml
+type appConfig struct {
+	Env         string `yaml:"env"`
+	Port        string `yaml:"port"`
+	ServiceName string `yaml:"service_name"`
+}
+
+// serverConfig holds server/token settings from config.yml
+type serverConfig struct {
+	AccessTokenTTLMinutes int `yaml:"access_token_ttl_minutes"`
+	RefreshTokenTTLHours  int `yaml:"refresh_token_ttl_hours"`
+}
+
+// loggingConfig holds logging settings from config.yml
+type loggingConfig struct {
+	Level  string `yaml:"level"`
+	Format string `yaml:"format"`
+}
+
+// yamlConfig matches the structure of configs/config.yml
+type yamlConfig struct {
+	App     appConfig     `yaml:"app"`
+	Server  serverConfig  `yaml:"server"`
+	Logging loggingConfig `yaml:"logging"`
+}
 
 type Config struct {
 	AppEnv          string
@@ -14,22 +43,61 @@ type Config struct {
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
 	LogLevel        string
-	LogFormat      string // json, console (default: json for production, console for development)
+	LogFormat       string
 	ServiceName     string
 }
 
 func Load() *Config {
-	return &Config{
-		AppEnv:          getEnv("APP_ENV", "development"),
-		Port:            getEnv("PORT", "8080"),
-		DatabaseURL:     getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/alumieye?sslmode=disable"),
-		JWTSecret:       getEnv("JWT_SECRET", "change_me_in_production"),
-		AccessTokenTTL:  time.Duration(getEnvAsInt("ACCESS_TOKEN_TTL_MINUTES", 15)) * time.Minute,
-		RefreshTokenTTL: time.Duration(getEnvAsInt("REFRESH_TOKEN_TTL_HOURS", 720)) * time.Hour,
-		LogLevel:        getEnv("LOG_LEVEL", "info"),
-		LogFormat:       getEnv("LOG_FORMAT", ""), // empty = auto from APP_ENV
-		ServiceName:     getEnv("SERVICE_NAME", "alumieye-api"),
+	cfg := &Config{
+		AppEnv:          "development",
+		Port:            "8080",
+		DatabaseURL:     "",
+		JWTSecret:       "",
+		AccessTokenTTL:  15 * time.Minute,
+		RefreshTokenTTL: 720 * time.Hour,
+		LogLevel:        "info",
+		LogFormat:       "",
+		ServiceName:     "alumieye-api",
 	}
+
+	// Load public config from configs/config.yml
+	if data, err := os.ReadFile(configPath()); err == nil {
+		var yc yamlConfig
+		if err := yaml.Unmarshal(data, &yc); err == nil {
+			if yc.App.Env != "" {
+				cfg.AppEnv = yc.App.Env
+			}
+			if yc.App.Port != "" {
+				cfg.Port = yc.App.Port
+			}
+			if yc.App.ServiceName != "" {
+				cfg.ServiceName = yc.App.ServiceName
+			}
+			if yc.Server.AccessTokenTTLMinutes > 0 {
+				cfg.AccessTokenTTL = time.Duration(yc.Server.AccessTokenTTLMinutes) * time.Minute
+			}
+			if yc.Server.RefreshTokenTTLHours > 0 {
+				cfg.RefreshTokenTTL = time.Duration(yc.Server.RefreshTokenTTLHours) * time.Hour
+			}
+			if yc.Logging.Level != "" {
+				cfg.LogLevel = yc.Logging.Level
+			}
+			cfg.LogFormat = yc.Logging.Format
+		}
+	}
+
+	// Secrets: from environment only (no defaults in config.yml)
+	cfg.DatabaseURL = getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/alumieye?sslmode=disable")
+	cfg.JWTSecret = getEnv("JWT_SECRET", "change_me_in_production")
+
+	return cfg
+}
+
+func configPath() string {
+	if p := os.Getenv("CONFIG_PATH"); p != "" {
+		return p
+	}
+	return filepath.Join("configs", "config.yml")
 }
 
 // IsProduction returns true if running in production environment

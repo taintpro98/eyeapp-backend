@@ -56,10 +56,10 @@ docker run -d --name alumieye-postgres \
 psql -h localhost -U postgres -d alumieye -f migrations/001_initial_schema.up.sql
 ```
 
-3. Copy and configure environment:
+3. Configure secrets (optional for local dev - defaults in config.yml):
 ```bash
 cp .env.example .env
-# Edit .env as needed
+# Edit .env with DATABASE_URL and JWT_SECRET if needed
 ```
 
 4. Run the server:
@@ -204,14 +204,17 @@ migrations/           # SQL migrations
 
 ## Configuration
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `APP_ENV` | Environment (development/production) | development |
-| `PORT` | Server port | 8080 |
-| `DATABASE_URL` | PostgreSQL connection string | - |
-| `JWT_SECRET` | Secret key for JWT signing | - |
-| `ACCESS_TOKEN_TTL_MINUTES` | Access token lifetime | 15 |
-| `REFRESH_TOKEN_TTL_HOURS` | Refresh token lifetime | 720 (30 days) |
+**Public config** (safe to commit): `configs/config.yml`  
+**Secrets** (env only): `.env` or environment variables
+
+| Source | Variable | Description |
+|--------|----------|-------------|
+| config.yml | `app.env`, `app.port`, `app.service_name` | Environment, port, service name |
+| config.yml | `server.access_token_ttl_minutes` | Access token lifetime (default: 15) |
+| config.yml | `server.refresh_token_ttl_hours` | Refresh token lifetime (default: 720) |
+| config.yml | `logging.level`, `logging.format` | Log level and format |
+| env | `DATABASE_URL` | PostgreSQL connection string |
+| env | `JWT_SECRET` | Secret key for JWT signing |
 
 ## Error Codes
 
