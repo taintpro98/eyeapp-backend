@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 )
 
@@ -48,6 +49,8 @@ type Config struct {
 }
 
 func Load() *Config {
+	_ = godotenv.Load() // load .env if present (no-op if missing)
+
 	cfg := &Config{
 		AppEnv:          "development",
 		Port:            "8080",
