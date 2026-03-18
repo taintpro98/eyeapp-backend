@@ -2,6 +2,7 @@ package email
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -16,11 +17,11 @@ const resendAPIURL = "https://api.resend.com/emails"
 type ResendSender struct {
 	apiKey string
 	from   string
-	log    *logger.Logger
+	log    logger.Logger
 }
 
 // NewResendSender creates a new Resend email sender
-func NewResendSender(log *logger.Logger, apiKey, from string) *ResendSender {
+func NewResendSender(log logger.Logger, apiKey, from string) *ResendSender {
 	return &ResendSender{
 		apiKey: apiKey,
 		from:   strings.TrimSpace(from),
@@ -29,10 +30,8 @@ func NewResendSender(log *logger.Logger, apiKey, from string) *ResendSender {
 }
 
 // SendVerificationEmail sends an email verification link
-func (s *ResendSender) SendVerificationEmail(to string, verifyURL string) error {
-	if s.log != nil {
-		s.log.Info().Str("to", to).Msg("Sending verification email")
-	}
+func (s *ResendSender) SendVerificationEmail(ctx context.Context, to string, verifyURL string) error {
+	s.log.Info(ctx, "Sending verification email", logger.Str("to", to))
 	if s.apiKey == "" {
 		return fmt.Errorf("resend: API key not configured")
 	}
@@ -60,17 +59,13 @@ func (s *ResendSender) SendVerificationEmail(to string, verifyURL string) error 
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		if s.log != nil {
-			s.log.Error().Err(err).Msg("Failed to marshal email payload")
-		}
+		s.log.Error(ctx, "Failed to marshal email payload", logger.Err(err))
 		return fmt.Errorf("resend: marshal payload: %w", err)
 	}
 
 	req, err := http.NewRequest(http.MethodPost, resendAPIURL, bytes.NewReader(body))
 	if err != nil {
-		if s.log != nil {
-			s.log.Error().Err(err).Msg("Failed to create Resend request")
-		}
+		s.log.Error(ctx, "Failed to create Resend request", logger.Err(err))
 		return fmt.Errorf("resend: create request: %w", err)
 	}
 
@@ -79,22 +74,16 @@ func (s *ResendSender) SendVerificationEmail(to string, verifyURL string) error 
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		if s.log != nil {
-			s.log.Error().Err(err).Str("to", to).Msg("Failed to send verification email")
-		}
+		s.log.Error(ctx, "Failed to send verification email", logger.Err(err), logger.Str("to", to))
 		return fmt.Errorf("resend: send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		if s.log != nil {
-			s.log.Error().Int("status", resp.StatusCode).Str("to", to).Msg("Resend API returned error status")
-		}
+		s.log.Error(ctx, "Resend API returned error status", logger.Int("status", resp.StatusCode), logger.Str("to", to))
 		return fmt.Errorf("resend: API returned status %d", resp.StatusCode)
 	}
 
-	if s.log != nil {
-		s.log.Info().Str("to", to).Msg("Verification email sent successfully")
-	}
+	s.log.Info(ctx, "Verification email sent successfully", logger.Str("to", to))
 	return nil
 }

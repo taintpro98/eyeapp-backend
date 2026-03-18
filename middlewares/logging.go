@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"github.com/alumieye/eyeapp-backend/pkg/logger"
-	"github.com/alumieye/eyeapp-backend/pkg/trace"
-	"github.com/rs/zerolog"
 )
 
 // responseWriter wraps http.ResponseWriter to capture status code
@@ -40,7 +38,7 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 }
 
 // Logging returns HTTP request logging middleware
-func Logging(log *logger.Logger) func(http.Handler) http.Handler {
+func Logging(log logger.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -49,31 +47,27 @@ func Logging(log *logger.Logger) func(http.Handler) http.Handler {
 			next.ServeHTTP(wrapped, r)
 
 			duration := time.Since(start)
+			ctx := r.Context()
 
-			var event *zerolog.Event
+			fields := []logger.LogField{
+				logger.Str("method", r.Method),
+				logger.Str("path", r.URL.Path),
+				logger.Str("query", r.URL.RawQuery),
+				logger.Int("status", wrapped.status),
+				logger.Int("size", wrapped.size),
+				logger.Dur("duration_ms", duration),
+				logger.Str("remote_addr", r.RemoteAddr),
+				logger.Str("user_agent", r.UserAgent()),
+			}
+
 			switch {
 			case wrapped.status >= 500:
-				event = log.Error()
+				log.Error(ctx, "Request completed", fields...)
 			case wrapped.status >= 400:
-				event = log.Warn()
+				log.Warn(ctx, "Request completed", fields...)
 			default:
-				event = log.Info()
+				log.Info(ctx, "Request completed", fields...)
 			}
-
-			traceID := trace.GetTraceID(r.Context())
-			event.
-				Str("method", r.Method).
-				Str("path", r.URL.Path).
-				Str("query", r.URL.RawQuery).
-				Int("status", wrapped.status).
-				Int("size", wrapped.size).
-				Dur("duration_ms", duration).
-				Str("remote_addr", r.RemoteAddr).
-				Str("user_agent", r.UserAgent())
-			if traceID != "" {
-				event = event.Str("trace_id", traceID)
-			}
-			event.Msg("Incoming request")
 		})
 	}
 }

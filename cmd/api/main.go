@@ -55,18 +55,18 @@ func main() {
 		ServiceName: cfg.ServiceName,
 	})
 
-	log.Info().
-		Str("env", cfg.AppEnv).
-		Str("log_level", cfg.LogLevel).
-		Msg("Starting ALumiEye API server")
+	log.Info(context.Background(), "Starting ALumiEye API server",
+		logger.Str("env", cfg.AppEnv),
+		logger.Str("log_level", cfg.LogLevel),
+	)
 
 	// Connect to database
 	database, err := db.Connect(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to connect to database")
+		log.Fatal(context.Background(), "Failed to connect to database", logger.Err(err))
 	}
 	defer database.Close()
-	log.Info().Msg("Connected to database")
+	log.Info(context.Background(), "Connected to database")
 
 	// Initialize repositories
 	userRepo := user.NewRepository(database)
@@ -129,13 +129,13 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		log.Info().
-			Str("port", cfg.Port).
-			Str("swagger_url", "http://localhost:"+cfg.Port+"/docs/").
-			Msg("Server listening")
+		log.Info(context.Background(), "Server listening",
+			logger.Str("port", cfg.Port),
+			logger.Str("swagger_url", "http://localhost:"+cfg.Port+"/docs/"),
+		)
 
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal().Err(err).Msg("Server error")
+			log.Fatal(context.Background(), "Server error", logger.Err(err))
 		}
 	}()
 
@@ -144,15 +144,15 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Info().Msg("Shutting down server...")
+	log.Info(context.Background(), "Shutting down server...")
 
 	// Give outstanding requests a deadline for completion
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
-		log.Error().Err(err).Msg("Server forced to shutdown")
+		log.Error(ctx, "Server forced to shutdown", logger.Err(err))
 	}
 
-	log.Info().Msg("Server stopped")
+	log.Info(context.Background(), "Server stopped")
 }

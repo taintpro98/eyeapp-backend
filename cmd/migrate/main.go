@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -48,7 +49,7 @@ func main() {
 		cfg.DatabaseURL,
 	)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create migrate instance")
+		log.Fatal(context.Background(), "Failed to create migrate instance", logger.Err(err))
 	}
 	defer m.Close()
 
@@ -61,42 +62,42 @@ func main() {
 			err = m.Up()
 		}
 		if err != nil && err != migrate.ErrNoChange {
-			log.Fatal().Err(err).Msg("Migration up failed")
+			log.Fatal(context.Background(), "Migration up failed", logger.Err(err))
 		}
-		log.Info().Msg("Migrations applied successfully")
+		log.Info(context.Background(), "Migrations applied successfully")
 
 	case "version":
 		version, dirty, err := m.Version()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to get version")
+			log.Fatal(context.Background(), "Failed to get version", logger.Err(err))
 		}
-		log.Info().
-			Uint("version", version).
-			Bool("dirty", dirty).
-			Msg("Current migration version")
+		log.Info(context.Background(), "Current migration version",
+			logger.Uint("version", version),
+			logger.Bool("dirty", dirty),
+		)
 
 	case "force":
 		if len(args) < 2 {
-			log.Fatal().Msg("Force requires a version number")
+			log.Fatal(context.Background(), "Force requires a version number")
 		}
 		var version int
 		fmt.Sscanf(args[1], "%d", &version)
 		err = m.Force(version)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Force failed")
+			log.Fatal(context.Background(), "Force failed", logger.Err(err))
 		}
-		log.Info().Int("version", version).Msg("Forced to version")
+		log.Info(context.Background(), "Forced to version", logger.Int("version", version))
 
 	case "drop":
 		err = m.Drop()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Drop failed")
+			log.Fatal(context.Background(), "Drop failed", logger.Err(err))
 		}
-		log.Info().Msg("Database dropped")
+		log.Info(context.Background(), "Database dropped")
 
 	case "create":
 		if len(args) < 2 {
-			log.Fatal().Msg("Create requires a migration name")
+			log.Fatal(context.Background(), "Create requires a migration name")
 		}
 		name := args[1]
 		createMigration(migrationsPath, name, log)
@@ -132,11 +133,12 @@ Examples:
   migrate force 1               # Force version to 1`)
 }
 
-func createMigration(path, name string, log *logger.Logger) {
+func createMigration(path, name string, log logger.Logger) {
+	ctx := context.Background()
 	// Get next version number
 	entries, err := os.ReadDir(path)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to read migrations directory")
+		log.Fatal(ctx, "Failed to read migrations directory", logger.Err(err))
 	}
 
 	version := 1
@@ -155,8 +157,8 @@ func createMigration(path, name string, log *logger.Logger) {
 	upContent := fmt.Sprintf("-- Migration: %s\n-- Created at: %s\n\n-- Add your migration SQL here\n", name, "now")
 
 	if err := os.WriteFile(upFile, []byte(upContent), 0644); err != nil {
-		log.Fatal().Err(err).Msg("Failed to create migration file")
+		log.Fatal(ctx, "Failed to create migration file", logger.Err(err))
 	}
 
-	log.Info().Str("file", upFile).Msg("Migration file created")
+	log.Info(ctx, "Migration file created", logger.Str("file", upFile))
 }

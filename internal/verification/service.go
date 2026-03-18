@@ -21,7 +21,7 @@ var (
 
 // Service handles email verification logic
 type Service struct {
-	log           *logger.Logger
+	log           logger.Logger
 	repo          Repository
 	identityRepo  identity.Repository
 	emailSender   email.Sender
@@ -31,7 +31,7 @@ type Service struct {
 
 // NewService creates a new verification service
 func NewService(
-	log *logger.Logger,
+	log logger.Logger,
 	repo Repository,
 	identityRepo identity.Repository,
 	emailSender email.Sender,
@@ -116,7 +116,7 @@ func (s *Service) CreateAndSendToken(ctx context.Context, userID, emailAddr stri
 	verifyURL := fmt.Sprintf("%s?token=%s", s.verifyURLBase, rawToken)
 
 	if s.emailSender != nil {
-		if err := s.emailSender.SendVerificationEmail(emailAddr, verifyURL); err != nil {
+		if err := s.emailSender.SendVerificationEmail(ctx, emailAddr, verifyURL); err != nil {
 			// Log but don't fail - token is stored, user can resend
 			return err
 		}

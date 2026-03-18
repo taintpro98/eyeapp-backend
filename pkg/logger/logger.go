@@ -1,16 +1,52 @@
 package logger
 
 import (
+	"context"
 	"io"
 	"os"
 	"time"
 
+	"github.com/alumieye/eyeapp-backend/pkg/trace"
 	"github.com/rs/zerolog"
 )
 
-// Logger wraps zerolog.Logger
-type Logger struct {
-	zerolog.Logger
+// LogField represents a key-value pair for structured logging
+type LogField struct {
+	Key   string
+	Value interface{}
+}
+
+// Str returns a string log field
+func Str(key, value string) LogField { return LogField{Key: key, Value: value} }
+
+// Int returns an int log field
+func Int(key string, value int) LogField { return LogField{Key: key, Value: value} }
+
+// Int64 returns an int64 log field
+func Int64(key string, value int64) LogField { return LogField{Key: key, Value: value} }
+
+// Err returns an error log field (zerolog uses "error" key)
+func Err(err error) LogField { return LogField{Key: "error", Value: err} }
+
+// Any returns a generic log field
+func Any(key string, value interface{}) LogField { return LogField{Key: key, Value: value} }
+
+// Dur returns a duration log field
+func Dur(key string, value time.Duration) LogField { return LogField{Key: key, Value: value} }
+
+// Bool returns a bool log field
+func Bool(key string, value bool) LogField { return LogField{Key: key, Value: value} }
+
+// Uint returns a uint log field
+func Uint(key string, value uint) LogField { return LogField{Key: key, Value: value} }
+
+// Logger is the interface for structured logging with context support (trace_id)
+type Logger interface {
+	Info(ctx context.Context, msg string, fields ...LogField)
+	Error(ctx context.Context, msg string, fields ...LogField)
+	Warn(ctx context.Context, msg string, fields ...LogField)
+	Debug(ctx context.Context, msg string, fields ...LogField)
+	Fatal(ctx context.Context, msg string, fields ...LogField)
 }
 
 // Config holds logger configuration
@@ -21,8 +57,13 @@ type Config struct {
 	ServiceName string
 }
 
+// zerologLogger implements Logger using zerolog
+type zerologLogger struct {
+	z zerolog.Logger
+}
+
 // New creates a new logger based on the environment
-func New(cfg *Config) *Logger {
+func New(cfg *Config) Logger {
 	if cfg == nil {
 		cfg = &Config{
 			Level:       "info",
@@ -31,7 +72,6 @@ func New(cfg *Config) *Logger {
 		}
 	}
 
-	// Set log level
 	level := parseLevel(cfg.Level)
 	zerolog.SetGlobalLevel(level)
 
@@ -39,49 +79,92 @@ func New(cfg *Config) *Logger {
 	useJSON := cfg.LogFormat == "json" || (cfg.LogFormat == "" && cfg.Environment == "production")
 
 	if useJSON {
-		// Production: JSON output to stdout (machine-readable for log aggregators)
 		output = os.Stdout
 	} else {
-		// Development: Pretty console output
 		output = zerolog.ConsoleWriter{
 			Out:        os.Stdout,
 			TimeFormat: time.RFC3339,
 		}
 	}
 
-	logger := zerolog.New(output).
+	z := zerolog.New(output).
 		With().
 		Timestamp().
 		Str("service", cfg.ServiceName).
 		Logger()
 
-	return &Logger{logger}
-}
-
-// NewProduction creates a production JSON logger
-func NewProduction(serviceName string) *Logger {
-	return New(&Config{
-		Level:       "info",
-		Environment: "production",
-		ServiceName: serviceName,
-	})
-}
-
-// NewDevelopment creates a development console logger
-func NewDevelopment(serviceName string) *Logger {
-	return New(&Config{
-		Level:       "debug",
-		Environment: "development",
-		ServiceName: serviceName,
-	})
+	return &zerologLogger{z: z}
 }
 
 // NewNop returns a no-op logger that discards all output. Use in tests.
-func NewNop() *Logger {
-	return &Logger{Logger: zerolog.Nop()}
+func NewNop() Logger {
+	return &nopLogger{}
 }
 
-// parseLevel converts string level to zerolog.Level
+// nopLogger implements Logger and discards all output
+type nopLogger struct{}
+
+func (nopLogger) Info(context.Context, string, ...LogField)  {}
+func (nopLogger) Error(context.Context, string, ...LogField) {}
+func (nopLogger) Warn(context.Context, string, ...LogField)  {}
+func (nopLogger) Debug(context.Context, string, ...LogField) {}
+func (nopLogger) Fatal(context.Context, string, ...LogField) {}
+
+func (l *zerologLogger) Info(ctx context.Context, msg string, fields ...LogField) {
+	l.logEvent(ctx, zerolog.InfoLevel, msg, fields)
+}
+
+func (l *zerologLogger) Error(ctx context.Context, msg string, fields ...LogField) {
+	l.logEvent(ctx, zerolog.ErrorLevel, msg, fields)
+}
+
+func (l *zerologLogger) Warn(ctx context.Context, msg string, fields ...LogField) {
+	l.logEvent(ctx, zerolog.WarnLevel, msg, fields)
+}
+
+func (l *zerologLogger) Debug(ctx context.Context, msg string, fields ...LogField) {
+	l.logEvent(ctx, zerolog.DebugLevel, msg, fields)
+}
+
+func (l *zerologLogger) Fatal(ctx context.Context, msg string, fields ...LogField) {
+	l.logEvent(ctx, zerolog.FatalLevel, msg, fields)
+	os.Exit(1)
+}
+
+func (l *zerologLogger) logEvent(ctx context.Context, level zerolog.Level, msg string, fields []LogField) {
+	ev := l.z.WithLevel(level)
+	if ctx != nil {
+		if traceID := trace.GetTraceID(ctx); traceID != "" {
+			ev = ev.Str("trace_id", traceID)
+		}
+	}
+	for _, f := range fields {
+		ev = applyField(ev, f)
+	}
+	ev.Msg(msg)
+}
+
+func applyField(ev *zerolog.Event, f LogField) *zerolog.Event {
+	switch v := f.Value.(type) {
+	case error:
+		return ev.Err(v)
+	case string:
+		return ev.Str(f.Key, v)
+	case int:
+		return ev.Int(f.Key, v)
+	case int64:
+		return ev.Int64(f.Key, v)
+	case bool:
+		return ev.Bool(f.Key, v)
+	case time.Duration:
+		return ev.Dur(f.Key, v)
+	case uint:
+		return ev.Uint(f.Key, v)
+	default:
+		return ev.Interface(f.Key, v)
+	}
+}
+
 func parseLevel(level string) zerolog.Level {
 	switch level {
 	case "debug":
@@ -95,33 +178,4 @@ func parseLevel(level string) zerolog.Level {
 	default:
 		return zerolog.InfoLevel
 	}
-}
-
-// WithRequestID returns a logger with request ID context
-func (l *Logger) WithRequestID(requestID string) *Logger {
-	return &Logger{l.With().Str("request_id", requestID).Logger()}
-}
-
-// WithUserID returns a logger with user ID context
-func (l *Logger) WithUserID(userID string) *Logger {
-	return &Logger{l.With().Str("user_id", userID).Logger()}
-}
-
-// WithError returns a logger with error context
-func (l *Logger) WithError(err error) *Logger {
-	return &Logger{l.With().Err(err).Logger()}
-}
-
-// WithField returns a logger with an additional field
-func (l *Logger) WithField(key string, value interface{}) *Logger {
-	return &Logger{l.With().Interface(key, value).Logger()}
-}
-
-// WithFields returns a logger with additional fields
-func (l *Logger) WithFields(fields map[string]interface{}) *Logger {
-	ctx := l.With()
-	for k, v := range fields {
-		ctx = ctx.Interface(k, v)
-	}
-	return &Logger{ctx.Logger()}
 }

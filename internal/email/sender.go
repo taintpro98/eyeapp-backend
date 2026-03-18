@@ -1,6 +1,8 @@
 package email
 
+import "context"
+
 // Sender sends transactional emails
 type Sender interface {
-	SendVerificationEmail(to string, verifyURL string) error
+	SendVerificationEmail(ctx context.Context, to string, verifyURL string) error
 }

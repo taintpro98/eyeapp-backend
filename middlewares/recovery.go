@@ -7,16 +7,16 @@ import (
 )
 
 // Recovery returns panic recovery middleware with logging
-func Recovery(log *logger.Logger) func(http.Handler) http.Handler {
+func Recovery(log logger.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if err := recover(); err != nil {
-					log.Error().
-						Interface("panic", err).
-						Str("method", r.Method).
-						Str("path", r.URL.Path).
-						Msg("Panic recovered")
+					log.Error(r.Context(), "Panic recovered",
+						logger.Any("panic", err),
+						logger.Str("method", r.Method),
+						logger.Str("path", r.URL.Path),
+					)
 
 					w.Header().Set("Content-Type", "application/json")
 					http.Error(w, `{"error":{"code":"internal_error","message":"Internal server error"}}`, http.StatusInternalServerError)
