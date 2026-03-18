@@ -15,10 +15,13 @@ definitions:
     - validation_error
     - email_already_exists
     - invalid_credentials
+    - email_not_verified
     - unauthorized
     - invalid_refresh_token
     - session_expired
     - user_blocked
+    - invalid_verification_token
+    - verification_token_expired
     - internal_error
     - not_found
     type: string
@@ -26,10 +29,13 @@ definitions:
     - CodeValidationError
     - CodeEmailAlreadyExists
     - CodeInvalidCredentials
+    - CodeEmailNotVerified
     - CodeUnauthorized
     - CodeInvalidRefreshToken
     - CodeSessionExpired
     - CodeUserBlocked
+    - CodeInvalidVerificationToken
+    - CodeVerificationTokenExpired
     - CodeInternalError
     - CodeNotFound
   github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse:
@@ -82,6 +88,11 @@ definitions:
       user:
         $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_user.UserResponse'
     type: object
+  internal_auth.MessageResponse:
+    properties:
+      message:
+        type: string
+    type: object
   internal_auth.RefreshRequest:
     properties:
       refresh_token:
@@ -100,6 +111,16 @@ definitions:
         example: strong_password123
         type: string
     type: object
+  internal_auth.RegisterResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  internal_auth.ResendVerificationRequest:
+    properties:
+      email:
+        type: string
+    type: object
   internal_auth.TokensResponse:
     properties:
       access_token:
@@ -110,6 +131,11 @@ definitions:
         type: integer
       refresh_token:
         example: dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4...
+        type: string
+    type: object
+  internal_auth.VerifyEmailRequest:
+    properties:
+      token:
         type: string
     type: object
 host: localhost:8080
@@ -224,7 +250,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Create a new user account with email and password
+      description: Create a new user account with email and password. User must verify
+        email before logging in.
       parameters:
       - description: Registration details
         in: body
@@ -236,9 +263,9 @@ paths:
       - application/json
       responses:
         "201":
-          description: User registered successfully
+          description: Registration successful
           schema:
-            $ref: '#/definitions/internal_auth.AuthResponse'
+            $ref: '#/definitions/internal_auth.RegisterResponse'
         "400":
           description: Validation error
           schema:
@@ -252,6 +279,71 @@ paths:
           schema:
             $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
       summary: Register a new user
+      tags:
+      - auth
+  /auth/resend-verification-email:
+    post:
+      consumes:
+      - application/json
+      description: Send a new verification email if the account exists and is not
+        verified
+      parameters:
+      - description: Email address
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_auth.ResendVerificationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Generic success message
+          schema:
+            $ref: '#/definitions/internal_auth.MessageResponse'
+        "400":
+          description: Validation error
+          schema:
+            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+      summary: Resend verification email
+      tags:
+      - auth
+  /auth/verify-email:
+    post:
+      consumes:
+      - application/json
+      description: Verify email address using the token sent by email
+      parameters:
+      - description: Verification token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_auth.VerifyEmailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Email verified
+          schema:
+            $ref: '#/definitions/internal_auth.MessageResponse'
+        "400":
+          description: Invalid token
+          schema:
+            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+        "410":
+          description: Token expired
+          schema:
+            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+      summary: Verify email
       tags:
       - auth
   /health:
@@ -292,6 +384,31 @@ paths:
       summary: Get current user
       tags:
       - user
+  /users/{id}:
+    get:
+      description: Get a user's public information by their ID
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User info
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: User not found
+          schema:
+            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+      summary: Get user by ID
+      tags:
+      - users
 securityDefinitions:
   BearerAuth:
     description: 'Enter your bearer token in the format: Bearer {token}'

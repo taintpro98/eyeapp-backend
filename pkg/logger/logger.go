@@ -76,6 +76,11 @@ func NewDevelopment(serviceName string) *Logger {
 	})
 }
 
+// NewNop returns a no-op logger that discards all output. Use in tests.
+func NewNop() *Logger {
+	return &Logger{Logger: zerolog.Nop()}
+}
+
 // parseLevel converts string level to zerolog.Level
 func parseLevel(level string) zerolog.Level {
 	switch level {

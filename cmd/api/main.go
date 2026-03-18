@@ -10,12 +10,16 @@ import (
 
 	"github.com/alumieye/eyeapp-backend/internal/auth"
 	"github.com/alumieye/eyeapp-backend/internal/config"
-	httputil "github.com/alumieye/eyeapp-backend/internal/http"
+	"github.com/alumieye/eyeapp-backend/internal/email"
+	"github.com/alumieye/eyeapp-backend/routes"
 	"github.com/alumieye/eyeapp-backend/internal/identity"
 	"github.com/alumieye/eyeapp-backend/internal/session"
 	"github.com/alumieye/eyeapp-backend/internal/user"
+	"github.com/alumieye/eyeapp-backend/internal/verification"
+	"github.com/alumieye/eyeapp-backend/middlewares"
 	"github.com/alumieye/eyeapp-backend/pkg/db"
 	"github.com/alumieye/eyeapp-backend/pkg/logger"
+	"github.com/go-chi/chi/v5/middleware"
 
 	_ "github.com/alumieye/eyeapp-backend/docs" // Swagger docs
 )
@@ -68,31 +72,56 @@ func main() {
 	userRepo := user.NewRepository(database)
 	identityRepo := identity.NewRepository(database)
 	sessionRepo := session.NewRepository(database)
+	verificationRepo := verification.NewRepository(database)
+
+	// Initialize email sender (Resend or no-op if not configured)
+	var emailSender email.Sender
+	if cfg.ResendAPIKey != "" {
+		emailSender = email.NewResendSender(log, cfg.ResendAPIKey, cfg.EmailFrom)
+	} else {
+		emailSender = &email.NoopSender{}
+	}
+
+	// Initialize verification service
+	verificationService := verification.NewService(
+		log,
+		verificationRepo,
+		identityRepo,
+		emailSender,
+		cfg.EmailVerificationTTL,
+		cfg.AppVerifyURLBase,
+	)
 
 	// Initialize token service
 	tokenService := auth.NewTokenService(cfg.JWTSecret, cfg.AccessTokenTTL)
 
 	// Initialize auth service
 	authService := auth.NewService(
+		log,
 		userRepo,
 		identityRepo,
 		sessionRepo,
 		tokenService,
+		verificationService,
 		cfg.RefreshTokenTTL,
 	)
 
-	// Initialize handlers and middleware
+	// Initialize handlers
 	authHandler := auth.NewHandler(authService)
-	authMiddleware := auth.NewMiddleware(tokenService)
 
-	// Setup router
-	router := httputil.NewRouter(authHandler, authMiddleware, log)
-	handler := router.Setup()
+	// Setup router: middleware first (chi requires this), then routes
+	router := routes.NewRouter(authHandler, tokenService)
+	router.Use(middleware.RealIP)
+	router.Use(middlewares.TraceID())
+	router.Use(middlewares.CORS)
+	router.Use(middlewares.Logging(log))
+	router.Use(middlewares.Recovery(log))
+	mux := router.Setup()
 
 	// Create HTTP server
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,
-		Handler:      handler,
+		Handler:      mux,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,

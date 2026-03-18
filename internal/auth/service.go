@@ -10,11 +10,16 @@ import (
 	"github.com/alumieye/eyeapp-backend/internal/platform/crypto"
 	"github.com/alumieye/eyeapp-backend/internal/session"
 	"github.com/alumieye/eyeapp-backend/internal/user"
+	"github.com/alumieye/eyeapp-backend/internal/verification"
+	"github.com/alumieye/eyeapp-backend/pkg/logger"
+	"github.com/alumieye/eyeapp-backend/pkg/trace"
+	"github.com/lib/pq"
 )
 
 var (
 	ErrInvalidCredentials   = errors.New("invalid email or password")
 	ErrEmailAlreadyExists   = errors.New("email already exists")
+	ErrEmailNotVerified     = errors.New("email not verified")
 	ErrUserBlocked          = errors.New("user account is blocked")
 	ErrInvalidRefreshToken  = errors.New("invalid refresh token")
 	ErrSessionExpired       = errors.New("session has expired")
@@ -24,19 +29,23 @@ var (
 
 // Service handles authentication business logic
 type Service struct {
-	userRepo       user.Repository
-	identityRepo   identity.Repository
-	sessionRepo    session.Repository
-	tokenService   *TokenService
-	refreshTokenTTL time.Duration
+	userRepo         user.Repository
+	identityRepo     identity.Repository
+	sessionRepo      session.Repository
+	tokenService     *TokenService
+	verificationSvc   *verification.Service
+	refreshTokenTTL  time.Duration
+	log              *logger.Logger
 }
 
 // NewService creates a new auth service
 func NewService(
+	log *logger.Logger,
 	userRepo user.Repository,
 	identityRepo identity.Repository,
 	sessionRepo session.Repository,
 	tokenService *TokenService,
+	verificationSvc *verification.Service,
 	refreshTokenTTL time.Duration,
 ) *Service {
 	return &Service{
@@ -44,22 +53,27 @@ func NewService(
 		identityRepo:    identityRepo,
 		sessionRepo:     sessionRepo,
 		tokenService:    tokenService,
+		verificationSvc: verificationSvc,
 		refreshTokenTTL: refreshTokenTTL,
+		log:             log,
 	}
 }
 
-// Register creates a new user account with email/password
-func (s *Service) Register(ctx context.Context, req *RegisterRequest, reqCtx *RequestContext) (*AuthResponse, error) {
+// Register creates a new user account with email/password.
+// Does not auto-login; user must verify email first.
+func (s *Service) Register(ctx context.Context, req *RegisterRequest, _ *RequestContext) (*RegisterResponse, error) {
+	s.logInput(ctx, "Register", "email", req.Email, "display_name", req.DisplayName)
+
 	// Validate input
 	if err := s.validateRegisterRequest(req); err != nil {
 		return nil, err
 	}
 
 	// Normalize email
-	email := normalizeEmail(req.Email)
+	emailAddr := normalizeEmail(req.Email)
 
 	// Check if email already exists
-	exists, err := s.userRepo.EmailExists(ctx, email)
+	exists, err := s.userRepo.EmailExists(ctx, emailAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -75,32 +89,44 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest, reqCtx *Re
 
 	// Create user
 	newUser := &user.User{
-		Email:       email,
+		Email:       emailAddr,
 		DisplayName: strings.TrimSpace(req.DisplayName),
 		Status:      user.StatusActive,
 		Role:        user.RoleUser,
 	}
 	if err := s.userRepo.Create(ctx, newUser); err != nil {
+		if isUniqueViolation(err) {
+			return nil, ErrEmailAlreadyExists
+		}
 		return nil, err
 	}
 
-	// Create password identity
+	// Create password identity (verified_at = null for new users)
 	ident := &identity.Identity{
 		UserID:       newUser.ID,
 		Provider:     identity.ProviderPassword,
-		Email:        email,
+		Email:        emailAddr,
 		PasswordHash: &passwordHash,
 	}
 	if err := s.identityRepo.Create(ctx, ident); err != nil {
+		if isUniqueViolation(err) {
+			return nil, ErrEmailAlreadyExists
+		}
 		return nil, err
 	}
 
-	// Create session and generate tokens
-	return s.createSessionAndTokens(ctx, newUser, reqCtx)
+	// Generate verification token and send email
+	_ = s.verificationSvc.CreateAndSendToken(ctx, newUser.ID, emailAddr)
+
+	return &RegisterResponse{
+		Message: "Registration successful. Please verify your email before logging in.",
+	}, nil
 }
 
 // Login authenticates a user with email/password
 func (s *Service) Login(ctx context.Context, req *LoginRequest, reqCtx *RequestContext) (*AuthResponse, error) {
+	s.logInput(ctx, "Login", "email", req.Email)
+
 	// Validate input
 	if err := s.validateLoginRequest(req); err != nil {
 		return nil, err
@@ -127,6 +153,11 @@ func (s *Service) Login(ctx context.Context, req *LoginRequest, reqCtx *RequestC
 		return nil, ErrInvalidCredentials
 	}
 
+	// Require email verification
+	if ident.VerifiedAt == nil {
+		return nil, ErrEmailNotVerified
+	}
+
 	// Get user
 	usr, err := s.userRepo.GetByID(ctx, ident.UserID)
 	if err != nil {
@@ -150,6 +181,8 @@ func (s *Service) Login(ctx context.Context, req *LoginRequest, reqCtx *RequestC
 
 // Refresh validates a refresh token and issues new tokens
 func (s *Service) Refresh(ctx context.Context, req *RefreshRequest, reqCtx *RequestContext) (*AuthResponse, error) {
+	s.logInput(ctx, "Refresh", "refresh_token_present", req.RefreshToken != "")
+
 	if req.RefreshToken == "" {
 		return nil, ErrInvalidRefreshToken
 	}
@@ -216,6 +249,8 @@ func (s *Service) Refresh(ctx context.Context, req *RefreshRequest, reqCtx *Requ
 
 // Logout revokes a session
 func (s *Service) Logout(ctx context.Context, req *LogoutRequest) error {
+	s.logInput(ctx, "Logout", "refresh_token_present", req.RefreshToken != "")
+
 	if req.RefreshToken == "" {
 		return nil // No-op if no token provided
 	}
@@ -238,7 +273,23 @@ func (s *Service) Logout(ctx context.Context, req *LogoutRequest) error {
 
 // GetCurrentUser returns the user for the given user ID
 func (s *Service) GetCurrentUser(ctx context.Context, userID string) (*user.User, error) {
+	s.logInput(ctx, "GetCurrentUser", "user_id", userID)
+
 	return s.userRepo.GetByID(ctx, userID)
+}
+
+// VerifyEmail validates a verification token and marks the identity as verified
+func (s *Service) VerifyEmail(ctx context.Context, rawToken string) error {
+	s.logInput(ctx, "VerifyEmail", "token_present", rawToken != "")
+
+	return s.verificationSvc.VerifyToken(ctx, rawToken)
+}
+
+// ResendVerificationEmail sends a new verification email if the account exists and is not verified
+func (s *Service) ResendVerificationEmail(ctx context.Context, emailAddr string) error {
+	s.logInput(ctx, "ResendVerificationEmail", "email", emailAddr)
+
+	return s.verificationSvc.ResendVerification(ctx, emailAddr)
 }
 
 // createSessionAndTokens creates a new session and returns auth tokens
@@ -315,6 +366,32 @@ func (s *Service) validateLoginRequest(req *LoginRequest) error {
 // normalizeEmail normalizes an email address
 func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
+}
+
+// logInput logs service input at debug level with trace_id. No-op if log is nil (e.g. in tests).
+func (s *Service) logInput(ctx context.Context, method string, kv ...interface{}) {
+	if s.log == nil {
+		return
+	}
+	ev := s.log.Debug().Str("service", "auth").Str("method", method)
+	if traceID := trace.GetTraceID(ctx); traceID != "" {
+		ev = ev.Str("trace_id", traceID)
+	}
+	for i := 0; i < len(kv)-1; i += 2 {
+		if key, ok := kv[i].(string); ok {
+			ev = ev.Interface(key, kv[i+1])
+		}
+	}
+	ev.Msg("service input")
+}
+
+// isUniqueViolation returns true if the error is a PostgreSQL unique constraint violation
+func isUniqueViolation(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return pqErr.Code == "23505"
+	}
+	return false
 }
 
 // isValidEmail performs basic email validation

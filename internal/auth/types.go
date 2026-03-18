@@ -38,6 +38,26 @@ type AuthResponse struct {
 	Tokens *TokensResponse    `json:"tokens"`
 }
 
+// RegisterResponse represents the response for registration (no tokens, verify email first)
+type RegisterResponse struct {
+	Message string `json:"message"`
+}
+
+// VerifyEmailRequest represents the verify-email request
+type VerifyEmailRequest struct {
+	Token string `json:"token"`
+}
+
+// ResendVerificationRequest represents the resend-verification-email request
+type ResendVerificationRequest struct {
+	Email string `json:"email"`
+}
+
+// MessageResponse represents a simple message response
+type MessageResponse struct {
+	Message string `json:"message"`
+}
+
 // MeResponse represents the response for the /me endpoint
 type MeResponse struct {
 	User *user.UserResponse `json:"user"`

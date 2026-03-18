@@ -3,8 +3,10 @@ module github.com/alumieye/eyeapp-backend
 go 1.25.0
 
 require (
+	github.com/go-chi/chi/v5 v5.2.5
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/golang-migrate/migrate/v4 v4.19.1
+	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.11.2
 	github.com/rs/zerolog v1.34.0
 	github.com/swaggo/http-swagger v1.3.4
@@ -25,7 +27,6 @@ require (
 	github.com/go-openapi/swag/stringutils v0.25.5 // indirect
 	github.com/go-openapi/swag/typeutils v0.25.5 // indirect
 	github.com/go-openapi/swag/yamlutils v0.25.5 // indirect
-	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/swaggo/files v1.0.1 // indirect

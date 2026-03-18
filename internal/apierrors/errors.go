@@ -9,15 +9,18 @@ import (
 type ErrorCode string
 
 const (
-	CodeValidationError     ErrorCode = "validation_error"
-	CodeEmailAlreadyExists  ErrorCode = "email_already_exists"
-	CodeInvalidCredentials  ErrorCode = "invalid_credentials"
-	CodeUnauthorized        ErrorCode = "unauthorized"
-	CodeInvalidRefreshToken ErrorCode = "invalid_refresh_token"
-	CodeSessionExpired      ErrorCode = "session_expired"
-	CodeUserBlocked         ErrorCode = "user_blocked"
-	CodeInternalError       ErrorCode = "internal_error"
-	CodeNotFound            ErrorCode = "not_found"
+	CodeValidationError          ErrorCode = "validation_error"
+	CodeEmailAlreadyExists      ErrorCode = "email_already_exists"
+	CodeInvalidCredentials      ErrorCode = "invalid_credentials"
+	CodeEmailNotVerified        ErrorCode = "email_not_verified"
+	CodeUnauthorized            ErrorCode = "unauthorized"
+	CodeInvalidRefreshToken     ErrorCode = "invalid_refresh_token"
+	CodeSessionExpired          ErrorCode = "session_expired"
+	CodeUserBlocked             ErrorCode = "user_blocked"
+	CodeInvalidVerificationToken ErrorCode = "invalid_verification_token"
+	CodeVerificationTokenExpired ErrorCode = "verification_token_expired"
+	CodeInternalError            ErrorCode = "internal_error"
+	CodeNotFound                 ErrorCode = "not_found"
 )
 
 // ErrorResponse represents an error response

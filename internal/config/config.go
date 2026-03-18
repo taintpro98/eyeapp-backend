@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -29,11 +31,17 @@ type loggingConfig struct {
 	Format string `yaml:"format"`
 }
 
+// emailConfig holds email settings from config.yml
+type emailConfig struct {
+	VerificationTokenTTLHours int `yaml:"verification_token_ttl_hours"`
+}
+
 // yamlConfig matches the structure of configs/config.yml
 type yamlConfig struct {
 	App     appConfig     `yaml:"app"`
 	Server  serverConfig  `yaml:"server"`
 	Logging loggingConfig `yaml:"logging"`
+	Email   emailConfig   `yaml:"email"`
 }
 
 type Config struct {
@@ -46,21 +54,30 @@ type Config struct {
 	LogLevel        string
 	LogFormat       string
 	ServiceName     string
+	// Email verification
+	EmailVerificationTTL time.Duration
+	ResendAPIKey        string
+	EmailFrom           string
+	AppVerifyURLBase    string
 }
 
 func Load() *Config {
 	_ = godotenv.Load() // load .env if present (no-op if missing)
 
 	cfg := &Config{
-		AppEnv:          "development",
-		Port:            "8080",
-		DatabaseURL:     "",
-		JWTSecret:       "",
-		AccessTokenTTL:  15 * time.Minute,
-		RefreshTokenTTL: 720 * time.Hour,
-		LogLevel:        "info",
-		LogFormat:       "",
-		ServiceName:     "alumieye-api",
+		AppEnv:                 "development",
+		Port:                   "8080",
+		DatabaseURL:            "",
+		JWTSecret:              "",
+		AccessTokenTTL:         15 * time.Minute,
+		RefreshTokenTTL:        720 * time.Hour,
+		LogLevel:               "info",
+		LogFormat:              "",
+		ServiceName:            "alumieye-api",
+		EmailVerificationTTL:   24 * time.Hour,
+		ResendAPIKey:           "",
+		EmailFrom:              "",
+		AppVerifyURLBase:       "http://localhost:5173/verify-email",
 	}
 
 	// Load public config from configs/config.yml
@@ -87,11 +104,29 @@ func Load() *Config {
 			}
 			cfg.LogFormat = yc.Logging.Format
 		}
+		if yc.Email.VerificationTokenTTLHours > 0 {
+			cfg.EmailVerificationTTL = time.Duration(yc.Email.VerificationTokenTTLHours) * time.Hour
+		}
 	}
 
 	// Secrets: from environment only (no defaults in config.yml)
-	cfg.DatabaseURL = getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/alumieye?sslmode=disable")
+	// DATABASE_URL takes precedence; otherwise build from DB_* parts
+	if u := getEnv("DATABASE_URL", ""); u != "" {
+		cfg.DatabaseURL = u
+	} else {
+		cfg.DatabaseURL = buildDatabaseURL(
+			getEnv("DB_HOST", "localhost"),
+			getEnv("DB_PORT", "5432"),
+			getEnv("DB_USER", "postgres"),
+			getEnv("DB_PASSWORD", "postgres"),
+			getEnv("DB_NAME", "alumieye"),
+			getEnv("DB_SSL_MODE", "disable"),
+		)
+	}
 	cfg.JWTSecret = getEnv("JWT_SECRET", "change_me_in_production")
+	cfg.ResendAPIKey = getEnv("RESEND_API_KEY", "")
+	cfg.EmailFrom = getEnv("EMAIL_FROM", "ALumiEye <onboarding@resend.dev>")
+	cfg.AppVerifyURLBase = getEnv("APP_VERIFY_URL_BASE", "http://localhost:5173/verify-email")
 
 	return cfg
 }
@@ -127,4 +162,18 @@ func getEnvAsInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+// buildDatabaseURL constructs a PostgreSQL connection string from parts
+func buildDatabaseURL(host, port, user, password, dbName, sslMode string) string {
+	u := &url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(user, password),
+		Host:   fmt.Sprintf("%s:%s", host, port),
+		Path:   "/" + dbName,
+	}
+	q := u.Query()
+	q.Set("sslmode", sslMode)
+	u.RawQuery = q.Encode()
+	return u.String()
 }

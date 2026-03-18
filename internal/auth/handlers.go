@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/alumieye/eyeapp-backend/internal/apierrors"
+	"github.com/alumieye/eyeapp-backend/internal/verification"
 )
 
 // Handler handles HTTP requests for authentication
@@ -20,12 +21,12 @@ func NewHandler(service *Service) *Handler {
 
 // Register handles user registration
 // @Summary Register a new user
-// @Description Create a new user account with email and password
+// @Description Create a new user account with email and password. User must verify email before logging in.
 // @Tags auth
 // @Accept json
 // @Produce json
 // @Param request body RegisterRequest true "Registration details"
-// @Success 201 {object} AuthResponse "User registered successfully"
+// @Success 201 {object} RegisterResponse "Registration successful"
 // @Failure 400 {object} apierrors.ErrorResponse "Validation error"
 // @Failure 409 {object} apierrors.ErrorResponse "Email already exists"
 // @Failure 500 {object} apierrors.ErrorResponse "Internal server error"
@@ -108,6 +109,70 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	apierrors.JSON(w, http.StatusOK, resp)
 }
 
+// VerifyEmail handles email verification
+// @Summary Verify email
+// @Description Verify email address using the token sent by email
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body VerifyEmailRequest true "Verification token"
+// @Success 200 {object} MessageResponse "Email verified"
+// @Failure 400 {object} apierrors.ErrorResponse "Invalid token"
+// @Failure 410 {object} apierrors.ErrorResponse "Token expired"
+// @Failure 500 {object} apierrors.ErrorResponse "Internal server error"
+// @Router /auth/verify-email [post]
+func (h *Handler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
+	var req VerifyEmailRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apierrors.ValidationError(w, "Invalid request body")
+		return
+	}
+
+	if req.Token == "" {
+		apierrors.Error(w, http.StatusBadRequest, apierrors.CodeInvalidVerificationToken, "Token is required")
+		return
+	}
+
+	err := h.service.VerifyEmail(r.Context(), req.Token)
+	if err != nil {
+		h.handleVerifyError(w, err)
+		return
+	}
+
+	apierrors.JSON(w, http.StatusOK, MessageResponse{Message: "Email verified successfully."})
+}
+
+// ResendVerificationEmail handles resending verification email
+// @Summary Resend verification email
+// @Description Send a new verification email if the account exists and is not verified
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body ResendVerificationRequest true "Email address"
+// @Success 200 {object} MessageResponse "Generic success message"
+// @Failure 400 {object} apierrors.ErrorResponse "Validation error"
+// @Failure 500 {object} apierrors.ErrorResponse "Internal server error"
+// @Router /auth/resend-verification-email [post]
+func (h *Handler) ResendVerificationEmail(w http.ResponseWriter, r *http.Request) {
+	var req ResendVerificationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apierrors.ValidationError(w, "Invalid request body")
+		return
+	}
+
+	if req.Email == "" {
+		apierrors.ValidationError(w, "Email is required")
+		return
+	}
+
+	_ = h.service.ResendVerificationEmail(r.Context(), req.Email)
+
+	// Always return success to avoid leaking account existence
+	apierrors.JSON(w, http.StatusOK, MessageResponse{
+		Message: "If the account exists and is not verified, a verification email has been sent.",
+	})
+}
+
 // Logout handles user logout
 // @Summary Logout user
 // @Description Revoke the current session/refresh token
@@ -166,6 +231,8 @@ func (h *Handler) handleAuthError(w http.ResponseWriter, err error) {
 		apierrors.Error(w, http.StatusConflict, apierrors.CodeEmailAlreadyExists, "Email already registered")
 	case errors.Is(err, ErrInvalidCredentials):
 		apierrors.Error(w, http.StatusUnauthorized, apierrors.CodeInvalidCredentials, "Invalid email or password")
+	case errors.Is(err, ErrEmailNotVerified):
+		apierrors.Error(w, http.StatusForbidden, apierrors.CodeEmailNotVerified, "Please verify your email before logging in.")
 	case errors.Is(err, ErrUserBlocked):
 		apierrors.Error(w, http.StatusForbidden, apierrors.CodeUserBlocked, "Account is blocked")
 	case errors.Is(err, ErrInvalidRefreshToken):
@@ -184,6 +251,18 @@ func (h *Handler) handleAuthError(w http.ResponseWriter, err error) {
 			apierrors.ValidationError(w, err.Error())
 			return
 		}
+		apierrors.InternalError(w)
+	}
+}
+
+// handleVerifyError converts verification errors to HTTP responses
+func (h *Handler) handleVerifyError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, verification.ErrInvalidVerificationToken), errors.Is(err, verification.ErrTokenAlreadyConsumed):
+		apierrors.Error(w, http.StatusBadRequest, apierrors.CodeInvalidVerificationToken, "Invalid verification token")
+	case errors.Is(err, verification.ErrVerificationTokenExpired):
+		apierrors.Error(w, http.StatusGone, apierrors.CodeVerificationTokenExpired, "Verification token has expired")
+	default:
 		apierrors.InternalError(w)
 	}
 }

@@ -13,3 +13,6 @@ server:
 logging:
   level: info # debug, info, warn, error
   format: "json" # json, console. Empty = auto from app.env
+
+email:
+  verification_token_ttl_hours: 24

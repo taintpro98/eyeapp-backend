@@ -1,4 +1,4 @@
-.PHONY: build build-migrate run test clean docker-build docker-up docker-down help swagger migrate-up migrate-down migrate-version migrate-create
+.PHONY: build build-migrate run test clean docker-build docker-up docker-down help swagger migrate-up migrate-version migrate-create
 
 # Go parameters
 GOCMD=go
@@ -75,10 +75,6 @@ swagger-fmt:
 ## migrate-up: Apply all database migrations
 migrate-up:
 	$(GOCMD) run ./cmd/migrate up
-
-## migrate-down: Rollback all database migrations
-migrate-down:
-	$(GOCMD) run ./cmd/migrate down
 
 ## migrate-version: Show current migration version
 migrate-version:

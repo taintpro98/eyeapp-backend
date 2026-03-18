@@ -10,7 +10,6 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Index on email for fast lookups
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 -- User identities table (supports multiple auth providers)
@@ -27,7 +26,6 @@ CREATE TABLE IF NOT EXISTS user_identities (
     UNIQUE(provider, email)
 );
 
--- Index on email for login lookups
 CREATE INDEX IF NOT EXISTS idx_user_identities_email ON user_identities(email);
 CREATE INDEX IF NOT EXISTS idx_user_identities_user_id ON user_identities(user_id);
 
@@ -44,9 +42,22 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
     last_used_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
--- Indexes for session lookups
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_refresh_token_hash ON auth_sessions(refresh_token_hash);
+
+-- Email verification tokens table
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    consumed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user_id ON email_verification_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_expires_at ON email_verification_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_token_hash ON email_verification_tokens(token_hash);
 
 -- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()

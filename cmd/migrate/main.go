@@ -65,17 +65,6 @@ func main() {
 		}
 		log.Info().Msg("Migrations applied successfully")
 
-	case "down":
-		if steps > 0 {
-			err = m.Steps(-steps)
-		} else {
-			err = m.Down()
-		}
-		if err != nil && err != migrate.ErrNoChange {
-			log.Fatal().Err(err).Msg("Migration down failed")
-		}
-		log.Info().Msg("Migrations rolled back successfully")
-
 	case "version":
 		version, dirty, err := m.Version()
 		if err != nil {
@@ -126,7 +115,6 @@ Usage:
 
 Commands:
   up              Apply all pending migrations
-  down            Rollback all migrations
   version         Show current migration version
   force <version> Force set migration version (use with caution)
   drop            Drop everything in the database
@@ -138,9 +126,7 @@ Flags:
 
 Examples:
   migrate up                    # Apply all migrations
-  migrate down                  # Rollback all migrations
   migrate -steps 1 up           # Apply 1 migration
-  migrate -steps 1 down         # Rollback 1 migration
   migrate version               # Show current version
   migrate create add_users      # Create new migration files
   migrate force 1               # Force version to 1`)
@@ -164,23 +150,13 @@ func createMigration(path, name string, log *logger.Logger) {
 		}
 	}
 
-	// Create migration files
+	// Create migration file (up only, no down migrations)
 	upFile := fmt.Sprintf("%s/%03d_%s.up.sql", path, version, name)
-	downFile := fmt.Sprintf("%s/%03d_%s.down.sql", path, version, name)
-
-	upContent := fmt.Sprintf("-- Migration: %s\n-- Created at: %s\n\n-- Add your UP migration SQL here\n", name, "now")
-	downContent := fmt.Sprintf("-- Migration: %s (rollback)\n-- Created at: %s\n\n-- Add your DOWN migration SQL here\n", name, "now")
+	upContent := fmt.Sprintf("-- Migration: %s\n-- Created at: %s\n\n-- Add your migration SQL here\n", name, "now")
 
 	if err := os.WriteFile(upFile, []byte(upContent), 0644); err != nil {
-		log.Fatal().Err(err).Msg("Failed to create up migration file")
+		log.Fatal().Err(err).Msg("Failed to create migration file")
 	}
 
-	if err := os.WriteFile(downFile, []byte(downContent), 0644); err != nil {
-		log.Fatal().Err(err).Msg("Failed to create down migration file")
-	}
-
-	log.Info().
-		Str("up", upFile).
-		Str("down", downFile).
-		Msg("Migration files created")
+	log.Info().Str("file", upFile).Msg("Migration file created")
 }

@@ -171,7 +171,7 @@ const docTemplate = `{
         },
         "/auth/register": {
             "post": {
-                "description": "Create a new user account with email and password",
+                "description": "Create a new user account with email and password. User must verify email before logging in.",
                 "consumes": [
                     "application/json"
                 ],
@@ -195,9 +195,9 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "User registered successfully",
+                        "description": "Registration successful",
                         "schema": {
-                            "$ref": "#/definitions/internal_auth.AuthResponse"
+                            "$ref": "#/definitions/internal_auth.RegisterResponse"
                         }
                     },
                     "400": {
@@ -208,6 +208,104 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "Email already exists",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/resend-verification-email": {
+            "post": {
+                "description": "Send a new verification email if the account exists and is not verified",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Resend verification email",
+                "parameters": [
+                    {
+                        "description": "Email address",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_auth.ResendVerificationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Generic success message",
+                        "schema": {
+                            "$ref": "#/definitions/internal_auth.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/verify-email": {
+            "post": {
+                "description": "Verify email address using the token sent by email",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Verify email",
+                "parameters": [
+                    {
+                        "description": "Verification token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_auth.VerifyEmailRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Email verified",
+                        "schema": {
+                            "$ref": "#/definitions/internal_auth.MessageResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                        }
+                    },
+                    "410": {
+                        "description": "Token expired",
                         "schema": {
                             "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
                         }
@@ -280,6 +378,44 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/users/{id}": {
+            "get": {
+                "description": "Get a user's public information by their ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Get user by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "User info",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -306,10 +442,13 @@ const docTemplate = `{
                 "validation_error",
                 "email_already_exists",
                 "invalid_credentials",
+                "email_not_verified",
                 "unauthorized",
                 "invalid_refresh_token",
                 "session_expired",
                 "user_blocked",
+                "invalid_verification_token",
+                "verification_token_expired",
                 "internal_error",
                 "not_found"
             ],
@@ -317,10 +456,13 @@ const docTemplate = `{
                 "CodeValidationError",
                 "CodeEmailAlreadyExists",
                 "CodeInvalidCredentials",
+                "CodeEmailNotVerified",
                 "CodeUnauthorized",
                 "CodeInvalidRefreshToken",
                 "CodeSessionExpired",
                 "CodeUserBlocked",
+                "CodeInvalidVerificationToken",
+                "CodeVerificationTokenExpired",
                 "CodeInternalError",
                 "CodeNotFound"
             ]
@@ -399,6 +541,14 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_auth.MessageResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_auth.RefreshRequest": {
             "type": "object",
             "properties": {
@@ -425,6 +575,22 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_auth.RegisterResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_auth.ResendVerificationRequest": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_auth.TokensResponse": {
             "type": "object",
             "properties": {
@@ -439,6 +605,14 @@ const docTemplate = `{
                 "refresh_token": {
                     "type": "string",
                     "example": "dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4..."
+                }
+            }
+        },
+        "internal_auth.VerifyEmailRequest": {
+            "type": "object",
+            "properties": {
+                "token": {
+                    "type": "string"
                 }
             }
         }

@@ -18,6 +18,7 @@ type Repository interface {
 	GetByProviderAndEmail(ctx context.Context, provider Provider, email string) (*Identity, error)
 	GetByUserID(ctx context.Context, userID string) ([]*Identity, error)
 	UpdatePasswordHash(ctx context.Context, id string, passwordHash string) error
+	UpdateVerifiedAt(ctx context.Context, id string, verifiedAt *time.Time) error
 }
 
 type PostgresRepository struct {
@@ -116,5 +117,11 @@ func (r *PostgresRepository) GetByUserID(ctx context.Context, userID string) ([]
 func (r *PostgresRepository) UpdatePasswordHash(ctx context.Context, id string, passwordHash string) error {
 	query := `UPDATE user_identities SET password_hash = $1 WHERE id = $2`
 	_, err := r.db.ExecContext(ctx, query, passwordHash, id)
+	return err
+}
+
+func (r *PostgresRepository) UpdateVerifiedAt(ctx context.Context, id string, verifiedAt *time.Time) error {
+	query := `UPDATE user_identities SET verified_at = $1 WHERE id = $2`
+	_, err := r.db.ExecContext(ctx, query, verifiedAt, id)
 	return err
 }
