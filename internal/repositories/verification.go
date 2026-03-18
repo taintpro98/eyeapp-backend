@@ -1,4 +1,4 @@
-package verification
+package repositories
 
 import (
 	"context"
@@ -6,32 +6,29 @@ import (
 	"errors"
 	"time"
 
+	"github.com/alumieye/eyeapp-backend/internal/models"
 	"github.com/alumieye/eyeapp-backend/pkg/db"
 )
 
 var (
-	ErrTokenNotFound = errors.New("verification token not found")
+	ErrVerificationTokenNotFound = errors.New("verification token not found")
 )
 
-// Repository manages email verification tokens
-type Repository interface {
-	Create(ctx context.Context, token *Token) error
-	GetByTokenHash(ctx context.Context, tokenHash string) (*Token, error)
+type VerificationRepository interface {
+	Create(ctx context.Context, token *models.VerificationToken) error
+	GetByTokenHash(ctx context.Context, tokenHash string) (*models.VerificationToken, error)
 	MarkConsumed(ctx context.Context, id string) error
 }
 
-// PostgresRepository implements Repository for PostgreSQL
-type PostgresRepository struct {
+type verificationPostgres struct {
 	db *db.DB
 }
 
-// NewRepository creates a new verification repository
-func NewRepository(database *db.DB) Repository {
-	return &PostgresRepository{db: database}
+func NewVerificationRepository(database *db.DB) VerificationRepository {
+	return &verificationPostgres{db: database}
 }
 
-// Create stores a new verification token
-func (r *PostgresRepository) Create(ctx context.Context, token *Token) error {
+func (r *verificationPostgres) Create(ctx context.Context, token *models.VerificationToken) error {
 	query := `
 		INSERT INTO email_verification_tokens (user_id, token_hash, expires_at, created_at)
 		VALUES ($1, $2, $3, $4)
@@ -48,14 +45,13 @@ func (r *PostgresRepository) Create(ctx context.Context, token *Token) error {
 	).Scan(&token.ID)
 }
 
-// GetByTokenHash finds a token by its hash
-func (r *PostgresRepository) GetByTokenHash(ctx context.Context, tokenHash string) (*Token, error) {
+func (r *verificationPostgres) GetByTokenHash(ctx context.Context, tokenHash string) (*models.VerificationToken, error) {
 	query := `
 		SELECT id, user_id, token_hash, expires_at, consumed_at, created_at
 		FROM email_verification_tokens
 		WHERE token_hash = $1
 	`
-	token := &Token{}
+	token := &models.VerificationToken{}
 	err := r.db.QueryRowContext(ctx, query, tokenHash).Scan(
 		&token.ID,
 		&token.UserID,
@@ -66,15 +62,14 @@ func (r *PostgresRepository) GetByTokenHash(ctx context.Context, tokenHash strin
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrTokenNotFound
+			return nil, ErrVerificationTokenNotFound
 		}
 		return nil, err
 	}
 	return token, nil
 }
 
-// MarkConsumed marks a token as consumed
-func (r *PostgresRepository) MarkConsumed(ctx context.Context, id string) error {
+func (r *verificationPostgres) MarkConsumed(ctx context.Context, id string) error {
 	query := `
 		UPDATE email_verification_tokens
 		SET consumed_at = NOW()

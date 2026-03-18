@@ -43,7 +43,8 @@ definitions:
       error:
         $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorBody'
     type: object
-  github_com_alumieye_eyeapp-backend_internal_user.UserResponse:
+  github_com_alumieye_eyeapp-backend_internal_models.UserResponse:
+    description: User public profile
     properties:
       display_name:
         example: John Doe
@@ -66,7 +67,7 @@ definitions:
       tokens:
         $ref: '#/definitions/internal_auth.TokensResponse'
       user:
-        $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_user.UserResponse'
+        $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_models.UserResponse'
     type: object
   internal_auth.LoginRequest:
     properties:
@@ -86,7 +87,7 @@ definitions:
   internal_auth.MeResponse:
     properties:
       user:
-        $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_user.UserResponse'
+        $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_models.UserResponse'
     type: object
   internal_auth.MessageResponse:
     properties:

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/alumieye/eyeapp-backend/internal/config"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -20,27 +21,23 @@ const (
 	TokenTypeRefresh TokenType = "refresh"
 )
 
-// AccessTokenClaims represents the claims in an access token
 type AccessTokenClaims struct {
 	jwt.RegisteredClaims
 	Type TokenType `json:"typ"`
 }
 
-// TokenService handles JWT token generation and validation
 type TokenService struct {
 	secret         []byte
 	accessTokenTTL time.Duration
 }
 
-// NewTokenService creates a new TokenService
-func NewTokenService(secret string, accessTokenTTL time.Duration) *TokenService {
+func NewTokenService(cfg *config.Config) *TokenService {
 	return &TokenService{
-		secret:         []byte(secret),
-		accessTokenTTL: accessTokenTTL,
+		secret:         []byte(cfg.JWTSecret),
+		accessTokenTTL: cfg.AccessTokenTTL,
 	}
 }
 
-// GenerateAccessToken creates a new JWT access token for a user
 func (s *TokenService) GenerateAccessToken(userID string) (string, error) {
 	now := time.Now()
 	claims := AccessTokenClaims{
@@ -56,7 +53,6 @@ func (s *TokenService) GenerateAccessToken(userID string) (string, error) {
 	return token.SignedString(s.secret)
 }
 
-// ValidateAccessToken validates a JWT access token and returns the user ID
 func (s *TokenService) ValidateAccessToken(tokenString string) (string, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &AccessTokenClaims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -84,7 +80,6 @@ func (s *TokenService) ValidateAccessToken(tokenString string) (string, error) {
 	return claims.Subject, nil
 }
 
-// GetAccessTokenTTL returns the access token TTL in seconds
 func (s *TokenService) GetAccessTokenTTL() int {
 	return int(s.accessTokenTTL.Seconds())
 }

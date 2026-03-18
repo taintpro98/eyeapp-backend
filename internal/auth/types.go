@@ -1,6 +1,6 @@
 package auth
 
-import "github.com/alumieye/eyeapp-backend/internal/user"
+import "github.com/alumieye/eyeapp-backend/internal/models"
 
 // RegisterRequest represents the registration request payload
 type RegisterRequest struct {
@@ -34,7 +34,7 @@ type TokensResponse struct {
 
 // AuthResponse represents the response for auth endpoints
 type AuthResponse struct {
-	User   *user.UserResponse `json:"user"`
+	User   *models.UserResponse `json:"user"`
 	Tokens *TokensResponse    `json:"tokens"`
 }
 
@@ -60,7 +60,7 @@ type MessageResponse struct {
 
 // MeResponse represents the response for the /me endpoint
 type MeResponse struct {
-	User *user.UserResponse `json:"user"`
+	User *models.UserResponse `json:"user"`
 }
 
 // RequestContext holds request-specific information

@@ -4,6 +4,8 @@
 
 # Binaries
 api
+eyeapp-backend
+migrate
 *.exe
 *.exe~
 *.dll

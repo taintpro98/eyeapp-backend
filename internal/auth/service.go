@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alumieye/eyeapp-backend/internal/identity"
+	"github.com/alumieye/eyeapp-backend/internal/config"
+	"github.com/alumieye/eyeapp-backend/internal/models"
 	"github.com/alumieye/eyeapp-backend/internal/platform/crypto"
-	"github.com/alumieye/eyeapp-backend/internal/session"
-	"github.com/alumieye/eyeapp-backend/internal/user"
+	"github.com/alumieye/eyeapp-backend/internal/repositories"
 	"github.com/alumieye/eyeapp-backend/internal/verification"
 	"github.com/alumieye/eyeapp-backend/pkg/logger"
 	"github.com/lib/pq"
@@ -26,26 +26,24 @@ var (
 	ErrValidationFailed     = errors.New("validation failed")
 )
 
-// Service handles authentication business logic
 type Service struct {
-	userRepo         user.Repository
-	identityRepo     identity.Repository
-	sessionRepo      session.Repository
-	tokenService     *TokenService
-	verificationSvc   *verification.Service
-	refreshTokenTTL  time.Duration
-	log              logger.Logger
+	userRepo        repositories.UserRepository
+	identityRepo    repositories.IdentityRepository
+	sessionRepo     repositories.SessionRepository
+	tokenService    *TokenService
+	verificationSvc *verification.Service
+	cfg             *config.Config
+	log             logger.Logger
 }
 
-// NewService creates a new auth service
 func NewService(
+	cfg *config.Config,
 	log logger.Logger,
-	userRepo user.Repository,
-	identityRepo identity.Repository,
-	sessionRepo session.Repository,
+	userRepo repositories.UserRepository,
+	identityRepo repositories.IdentityRepository,
+	sessionRepo repositories.SessionRepository,
 	tokenService *TokenService,
 	verificationSvc *verification.Service,
-	refreshTokenTTL time.Duration,
 ) *Service {
 	return &Service{
 		userRepo:        userRepo,
@@ -53,25 +51,20 @@ func NewService(
 		sessionRepo:     sessionRepo,
 		tokenService:    tokenService,
 		verificationSvc: verificationSvc,
-		refreshTokenTTL: refreshTokenTTL,
+		cfg:             cfg,
 		log:             log,
 	}
 }
 
-// Register creates a new user account with email/password.
-// Does not auto-login; user must verify email first.
 func (s *Service) Register(ctx context.Context, req *RegisterRequest, _ *RequestContext) (*RegisterResponse, error) {
 	s.log.Info(ctx, "Register", logger.Str("service", "auth"), logger.Str("email", req.Email), logger.Str("display_name", req.DisplayName))
 
-	// Validate input
 	if err := s.validateRegisterRequest(req); err != nil {
 		return nil, err
 	}
 
-	// Normalize email
 	emailAddr := normalizeEmail(req.Email)
 
-	// Check if email already exists
 	exists, err := s.userRepo.EmailExists(ctx, emailAddr)
 	if err != nil {
 		return nil, err
@@ -80,18 +73,16 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest, _ *Request
 		return nil, ErrEmailAlreadyExists
 	}
 
-	// Hash password
 	passwordHash, err := crypto.HashPassword(req.Password, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create user
-	newUser := &user.User{
+	newUser := &models.User{
 		Email:       emailAddr,
 		DisplayName: strings.TrimSpace(req.DisplayName),
-		Status:      user.StatusActive,
-		Role:        user.RoleUser,
+		Status:      models.UserStatusActive,
+		Role:        models.UserRoleUser,
 	}
 	if err := s.userRepo.Create(ctx, newUser); err != nil {
 		if isUniqueViolation(err) {
@@ -100,10 +91,9 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest, _ *Request
 		return nil, err
 	}
 
-	// Create password identity (verified_at = null for new users)
-	ident := &identity.Identity{
+	ident := &models.Identity{
 		UserID:       newUser.ID,
-		Provider:     identity.ProviderPassword,
+		Provider:     models.IdentityProviderPassword,
 		Email:        emailAddr,
 		PasswordHash: &passwordHash,
 	}
@@ -114,7 +104,6 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest, _ *Request
 		return nil, err
 	}
 
-	// Generate verification token and send email
 	_ = s.verificationSvc.CreateAndSendToken(ctx, newUser.ID, emailAddr)
 
 	return &RegisterResponse{
@@ -122,28 +111,23 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest, _ *Request
 	}, nil
 }
 
-// Login authenticates a user with email/password
 func (s *Service) Login(ctx context.Context, req *LoginRequest, reqCtx *RequestContext) (*AuthResponse, error) {
 	s.log.Info(ctx, "Login", logger.Str("service", "auth"), logger.Str("email", req.Email))
 
-	// Validate input
 	if err := s.validateLoginRequest(req); err != nil {
 		return nil, err
 	}
 
-	// Normalize email
 	email := normalizeEmail(req.Email)
 
-	// Find password identity
-	ident, err := s.identityRepo.GetByProviderAndEmail(ctx, identity.ProviderPassword, email)
+	ident, err := s.identityRepo.GetByProviderAndEmail(ctx, models.IdentityProviderPassword, email)
 	if err != nil {
-		if errors.Is(err, identity.ErrIdentityNotFound) {
+		if errors.Is(err, repositories.ErrIdentityNotFound) {
 			return nil, ErrInvalidCredentials
 		}
 		return nil, err
 	}
 
-	// Verify password
 	if ident.PasswordHash == nil {
 		return nil, ErrInvalidCredentials
 	}
@@ -152,33 +136,28 @@ func (s *Service) Login(ctx context.Context, req *LoginRequest, reqCtx *RequestC
 		return nil, ErrInvalidCredentials
 	}
 
-	// Require email verification
 	if ident.VerifiedAt == nil {
 		return nil, ErrEmailNotVerified
 	}
 
-	// Get user
 	usr, err := s.userRepo.GetByID(ctx, ident.UserID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Check user status
-	if usr.Status == user.StatusBlocked {
+	if usr.Status == models.UserStatusBlocked {
 		return nil, ErrUserBlocked
 	}
 
-	// Update last login
 	now := time.Now()
 	if err := s.userRepo.UpdateLastLogin(ctx, usr.ID, now); err != nil {
 		return nil, err
 	}
 
-	// Create session and generate tokens
 	return s.createSessionAndTokens(ctx, usr, reqCtx)
 }
 
-// Refresh validates a refresh token and issues new tokens
 func (s *Service) Refresh(ctx context.Context, req *RefreshRequest, reqCtx *RequestContext) (*AuthResponse, error) {
 	s.log.Info(ctx, "Refresh", logger.Str("service", "auth"), logger.Bool("refresh_token_present", req.RefreshToken != ""))
 
@@ -186,19 +165,16 @@ func (s *Service) Refresh(ctx context.Context, req *RefreshRequest, reqCtx *Requ
 		return nil, ErrInvalidRefreshToken
 	}
 
-	// Hash the refresh token
 	tokenHash := crypto.HashToken(req.RefreshToken)
 
-	// Find session by token hash
 	sess, err := s.sessionRepo.GetByRefreshTokenHash(ctx, tokenHash)
 	if err != nil {
-		if errors.Is(err, session.ErrSessionNotFound) {
+		if errors.Is(err, repositories.ErrSessionNotFound) {
 			return nil, ErrInvalidRefreshToken
 		}
 		return nil, err
 	}
 
-	// Validate session
 	if sess.IsRevoked() {
 		return nil, ErrSessionRevoked
 	}
@@ -206,31 +182,26 @@ func (s *Service) Refresh(ctx context.Context, req *RefreshRequest, reqCtx *Requ
 		return nil, ErrSessionExpired
 	}
 
-	// Get user
 	usr, err := s.userRepo.GetByID(ctx, sess.UserID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Check user status
-	if usr.Status == user.StatusBlocked {
+	if usr.Status == models.UserStatusBlocked {
 		return nil, ErrUserBlocked
 	}
 
-	// Implement refresh token rotation: generate new refresh token
 	newRefreshToken, err := crypto.GenerateRandomToken(32)
 	if err != nil {
 		return nil, err
 	}
 	newTokenHash := crypto.HashToken(newRefreshToken)
-	newExpiresAt := time.Now().Add(s.refreshTokenTTL)
+	newExpiresAt := time.Now().Add(s.cfg.RefreshTokenTTL)
 
-	// Update session with new refresh token
 	if err := s.sessionRepo.UpdateRefreshToken(ctx, sess.ID, newTokenHash, newExpiresAt); err != nil {
 		return nil, err
 	}
 
-	// Generate new access token
 	accessToken, err := s.tokenService.GenerateAccessToken(usr.ID)
 	if err != nil {
 		return nil, err
@@ -246,67 +217,56 @@ func (s *Service) Refresh(ctx context.Context, req *RefreshRequest, reqCtx *Requ
 	}, nil
 }
 
-// Logout revokes a session
 func (s *Service) Logout(ctx context.Context, req *LogoutRequest) error {
 	s.log.Info(ctx, "Logout", logger.Str("service", "auth"), logger.Bool("refresh_token_present", req.RefreshToken != ""))
 
 	if req.RefreshToken == "" {
-		return nil // No-op if no token provided
+		return nil
 	}
 
-	// Hash the refresh token
 	tokenHash := crypto.HashToken(req.RefreshToken)
 
-	// Find session
 	sess, err := s.sessionRepo.GetByRefreshTokenHash(ctx, tokenHash)
 	if err != nil {
-		if errors.Is(err, session.ErrSessionNotFound) {
-			return nil // Already logged out or invalid token
+		if errors.Is(err, repositories.ErrSessionNotFound) {
+			return nil
 		}
 		return err
 	}
 
-	// Revoke the session
 	return s.sessionRepo.Revoke(ctx, sess.ID)
 }
 
-// GetCurrentUser returns the user for the given user ID
-func (s *Service) GetCurrentUser(ctx context.Context, userID string) (*user.User, error) {
+func (s *Service) GetCurrentUser(ctx context.Context, userID string) (*models.User, error) {
 	s.log.Info(ctx, "GetCurrentUser", logger.Str("service", "auth"), logger.Str("user_id", userID))
 
 	return s.userRepo.GetByID(ctx, userID)
 }
 
-// VerifyEmail validates a verification token and marks the identity as verified
 func (s *Service) VerifyEmail(ctx context.Context, rawToken string) error {
 	s.log.Info(ctx, "VerifyEmail", logger.Str("service", "auth"), logger.Bool("token_present", rawToken != ""))
 
 	return s.verificationSvc.VerifyToken(ctx, rawToken)
 }
 
-// ResendVerificationEmail sends a new verification email if the account exists and is not verified
 func (s *Service) ResendVerificationEmail(ctx context.Context, emailAddr string) error {
 	s.log.Info(ctx, "ResendVerificationEmail", logger.Str("service", "auth"), logger.Str("email", emailAddr))
 
 	return s.verificationSvc.ResendVerification(ctx, emailAddr)
 }
 
-// createSessionAndTokens creates a new session and returns auth tokens
-func (s *Service) createSessionAndTokens(ctx context.Context, usr *user.User, reqCtx *RequestContext) (*AuthResponse, error) {
-	// Generate refresh token
+func (s *Service) createSessionAndTokens(ctx context.Context, usr *models.User, reqCtx *RequestContext) (*AuthResponse, error) {
 	refreshToken, err := crypto.GenerateRandomToken(32)
 	if err != nil {
 		return nil, err
 	}
 
-	// Hash refresh token for storage
 	tokenHash := crypto.HashToken(refreshToken)
 
-	// Create session
-	sess := &session.Session{
+	sess := &models.Session{
 		UserID:           usr.ID,
 		RefreshTokenHash: tokenHash,
-		ExpiresAt:        time.Now().Add(s.refreshTokenTTL),
+		ExpiresAt:        time.Now().Add(s.cfg.RefreshTokenTTL),
 	}
 	if reqCtx != nil {
 		if reqCtx.UserAgent != "" {
@@ -321,7 +281,6 @@ func (s *Service) createSessionAndTokens(ctx context.Context, usr *user.User, re
 		return nil, err
 	}
 
-	// Generate access token
 	accessToken, err := s.tokenService.GenerateAccessToken(usr.ID)
 	if err != nil {
 		return nil, err
@@ -337,7 +296,6 @@ func (s *Service) createSessionAndTokens(ctx context.Context, usr *user.User, re
 	}, nil
 }
 
-// validateRegisterRequest validates the registration request
 func (s *Service) validateRegisterRequest(req *RegisterRequest) error {
 	if req.Email == "" {
 		return errors.New("email is required")
@@ -351,7 +309,6 @@ func (s *Service) validateRegisterRequest(req *RegisterRequest) error {
 	return nil
 }
 
-// validateLoginRequest validates the login request
 func (s *Service) validateLoginRequest(req *LoginRequest) error {
 	if req.Email == "" {
 		return errors.New("email is required")
@@ -362,12 +319,10 @@ func (s *Service) validateLoginRequest(req *LoginRequest) error {
 	return nil
 }
 
-// normalizeEmail normalizes an email address
 func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
-// isUniqueViolation returns true if the error is a PostgreSQL unique constraint violation
 func isUniqueViolation(err error) bool {
 	var pqErr *pq.Error
 	if errors.As(err, &pqErr) {
@@ -376,7 +331,6 @@ func isUniqueViolation(err error) bool {
 	return false
 }
 
-// isValidEmail performs basic email validation
 func isValidEmail(email string) bool {
 	email = strings.TrimSpace(email)
 	if len(email) < 3 || len(email) > 254 {

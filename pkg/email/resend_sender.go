@@ -13,7 +13,6 @@ import (
 
 const resendAPIURL = "https://api.resend.com/emails"
 
-// ResendSender sends emails via Resend API
 type ResendSender struct {
 	apiKey string
 	from   string
@@ -29,7 +28,6 @@ func NewResendSender(log logger.Logger, apiKey, from string) *ResendSender {
 	}
 }
 
-// SendVerificationEmail sends an email verification link
 func (s *ResendSender) SendVerificationEmail(ctx context.Context, to string, verifyURL string) error {
 	s.log.Info(ctx, "Sending verification email", logger.Str("to", to))
 	if s.apiKey == "" {

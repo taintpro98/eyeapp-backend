@@ -1,8 +1,6 @@
-package session
+package models
 
-import (
-	"time"
-)
+import "time"
 
 type Session struct {
 	ID               string     `json:"id"`

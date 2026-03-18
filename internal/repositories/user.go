@@ -1,4 +1,4 @@
-package user
+package repositories
 
 import (
 	"context"
@@ -6,31 +6,32 @@ import (
 	"errors"
 	"time"
 
+	"github.com/alumieye/eyeapp-backend/internal/models"
 	"github.com/alumieye/eyeapp-backend/pkg/db"
 )
 
 var (
-	ErrUserNotFound      = errors.New("user not found")
+	ErrUserNotFound       = errors.New("user not found")
 	ErrEmailAlreadyExists = errors.New("email already exists")
 )
 
-type Repository interface {
-	Create(ctx context.Context, user *User) error
-	GetByID(ctx context.Context, id string) (*User, error)
-	GetByEmail(ctx context.Context, email string) (*User, error)
+type UserRepository interface {
+	Create(ctx context.Context, user *models.User) error
+	GetByID(ctx context.Context, id string) (*models.User, error)
+	GetByEmail(ctx context.Context, email string) (*models.User, error)
 	UpdateLastLogin(ctx context.Context, id string, loginTime time.Time) error
 	EmailExists(ctx context.Context, email string) (bool, error)
 }
 
-type PostgresRepository struct {
+type userPostgres struct {
 	db *db.DB
 }
 
-func NewRepository(database *db.DB) Repository {
-	return &PostgresRepository{db: database}
+func NewUserRepository(database *db.DB) UserRepository {
+	return &userPostgres{db: database}
 }
 
-func (r *PostgresRepository) Create(ctx context.Context, user *User) error {
+func (r *userPostgres) Create(ctx context.Context, user *models.User) error {
 	query := `
 		INSERT INTO users (email, display_name, status, role, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
@@ -55,13 +56,13 @@ func (r *PostgresRepository) Create(ctx context.Context, user *User) error {
 	return nil
 }
 
-func (r *PostgresRepository) GetByID(ctx context.Context, id string) (*User, error) {
+func (r *userPostgres) GetByID(ctx context.Context, id string) (*models.User, error) {
 	query := `
 		SELECT id, email, display_name, status, role, last_login_at, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
-	user := &User{}
+	user := &models.User{}
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&user.ID,
 		&user.Email,
@@ -81,13 +82,13 @@ func (r *PostgresRepository) GetByID(ctx context.Context, id string) (*User, err
 	return user, nil
 }
 
-func (r *PostgresRepository) GetByEmail(ctx context.Context, email string) (*User, error) {
+func (r *userPostgres) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `
 		SELECT id, email, display_name, status, role, last_login_at, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
-	user := &User{}
+	user := &models.User{}
 	err := r.db.QueryRowContext(ctx, query, email).Scan(
 		&user.ID,
 		&user.Email,
@@ -107,13 +108,13 @@ func (r *PostgresRepository) GetByEmail(ctx context.Context, email string) (*Use
 	return user, nil
 }
 
-func (r *PostgresRepository) UpdateLastLogin(ctx context.Context, id string, loginTime time.Time) error {
+func (r *userPostgres) UpdateLastLogin(ctx context.Context, id string, loginTime time.Time) error {
 	query := `UPDATE users SET last_login_at = $1 WHERE id = $2`
 	_, err := r.db.ExecContext(ctx, query, loginTime, id)
 	return err
 }
 
-func (r *PostgresRepository) EmailExists(ctx context.Context, email string) (bool, error) {
+func (r *userPostgres) EmailExists(ctx context.Context, email string) (bool, error) {
 	query := `SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)`
 	var exists bool
 	err := r.db.QueryRowContext(ctx, query, email).Scan(&exists)

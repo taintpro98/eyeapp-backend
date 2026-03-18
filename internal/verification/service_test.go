@@ -5,14 +5,23 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alumieye/eyeapp-backend/internal/email"
-	"github.com/alumieye/eyeapp-backend/internal/identity"
+	"github.com/alumieye/eyeapp-backend/internal/config"
+	"github.com/alumieye/eyeapp-backend/pkg/email"
+	"github.com/alumieye/eyeapp-backend/internal/models"
+	"github.com/alumieye/eyeapp-backend/internal/repositories"
 	"github.com/alumieye/eyeapp-backend/internal/platform/crypto"
 	"github.com/alumieye/eyeapp-backend/pkg/logger"
 )
 
+func testConfig() *config.Config {
+	return &config.Config{
+		EmailVerificationTTL: 24 * time.Hour,
+		AppVerifyURLBase:     "http://localhost:5173/verify-email",
+	}
+}
+
 func TestVerifyToken_EmptyToken(t *testing.T) {
-	svc := NewService(logger.NewNop(), &mockRepo{}, nil, nil, 24*time.Hour, "http://localhost:5173/verify-email")
+	svc := NewService(testConfig(), logger.NewNop(), &mockRepo{}, nil, nil)
 
 	err := svc.VerifyToken(context.Background(), "")
 	if err != ErrInvalidVerificationToken {
@@ -21,7 +30,7 @@ func TestVerifyToken_EmptyToken(t *testing.T) {
 }
 
 func TestVerifyToken_NotFound(t *testing.T) {
-	svc := NewService(logger.NewNop(), &mockRepo{notFound: true}, nil, nil, 24*time.Hour, "http://localhost:5173/verify-email")
+	svc := NewService(testConfig(), logger.NewNop(), &mockRepo{notFound: true}, nil, nil)
 
 	err := svc.VerifyToken(context.Background(), "any-token")
 	if err != ErrInvalidVerificationToken {
@@ -33,15 +42,15 @@ type mockRepo struct {
 	notFound bool
 }
 
-func (m *mockRepo) Create(ctx context.Context, token *Token) error {
+func (m *mockRepo) Create(ctx context.Context, token *models.VerificationToken) error {
 	return nil
 }
 
-func (m *mockRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*Token, error) {
+func (m *mockRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*models.VerificationToken, error) {
 	if m.notFound {
-		return nil, ErrTokenNotFound
+		return nil, repositories.ErrVerificationTokenNotFound
 	}
-	return &Token{ID: "1", UserID: "u1", TokenHash: tokenHash, ExpiresAt: time.Now().Add(time.Hour)}, nil
+	return &models.VerificationToken{ID: "1", UserID: "u1", TokenHash: tokenHash, ExpiresAt: time.Now().Add(time.Hour)}, nil
 }
 
 func (m *mockRepo) MarkConsumed(ctx context.Context, id string) error {
@@ -62,8 +71,9 @@ func TestTokenHash_LookupConsistency(t *testing.T) {
 }
 
 func TestResendVerification_NoopWhenNotFound(t *testing.T) {
-	// Resend should not error when identity not found (no leak)
-	svc := NewService(logger.NewNop(), &mockRepo{}, &mockIdentityRepo{notFound: true}, &email.NoopSender{}, 24*time.Hour, "http://localhost:3000")
+	cfg := testConfig()
+	cfg.AppVerifyURLBase = "http://localhost:3000"
+	svc := NewService(cfg, logger.NewNop(), &mockRepo{}, &mockIdentityRepo{notFound: true}, &email.NoopSender{})
 
 	err := svc.ResendVerification(context.Background(), "nonexistent@example.com")
 	if err != nil {
@@ -75,18 +85,18 @@ type mockIdentityRepo struct {
 	notFound bool
 }
 
-func (m *mockIdentityRepo) Create(ctx context.Context, identity *identity.Identity) error {
+func (m *mockIdentityRepo) Create(ctx context.Context, identity *models.Identity) error {
 	return nil
 }
 
-func (m *mockIdentityRepo) GetByProviderAndEmail(ctx context.Context, provider identity.Provider, email string) (*identity.Identity, error) {
+func (m *mockIdentityRepo) GetByProviderAndEmail(ctx context.Context, provider models.IdentityProvider, email string) (*models.Identity, error) {
 	if m.notFound {
-		return nil, identity.ErrIdentityNotFound
+		return nil, repositories.ErrIdentityNotFound
 	}
-	return &identity.Identity{UserID: "user-1", Email: email, Provider: identity.ProviderPassword}, nil
+	return &models.Identity{UserID: "user-1", Email: email, Provider: models.IdentityProviderPassword}, nil
 }
 
-func (m *mockIdentityRepo) GetByUserID(ctx context.Context, userID string) ([]*identity.Identity, error) {
+func (m *mockIdentityRepo) GetByUserID(ctx context.Context, userID string) ([]*models.Identity, error) {
 	return nil, nil
 }
 

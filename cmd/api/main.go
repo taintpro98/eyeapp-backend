@@ -3,23 +3,20 @@ package main
 import (
 	"context"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/alumieye/eyeapp-backend/internal/auth"
 	"github.com/alumieye/eyeapp-backend/internal/config"
-	"github.com/alumieye/eyeapp-backend/internal/email"
-	"github.com/alumieye/eyeapp-backend/routes"
-	"github.com/alumieye/eyeapp-backend/internal/identity"
-	"github.com/alumieye/eyeapp-backend/internal/session"
-	"github.com/alumieye/eyeapp-backend/internal/user"
+	"github.com/alumieye/eyeapp-backend/pkg/email"
+	"github.com/alumieye/eyeapp-backend/internal/repositories"
 	"github.com/alumieye/eyeapp-backend/internal/verification"
 	"github.com/alumieye/eyeapp-backend/middlewares"
 	"github.com/alumieye/eyeapp-backend/pkg/db"
 	"github.com/alumieye/eyeapp-backend/pkg/logger"
+	"github.com/alumieye/eyeapp-backend/routes"
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"go.uber.org/fx"
 
 	_ "github.com/alumieye/eyeapp-backend/docs" // Swagger docs
 )
@@ -43,82 +40,82 @@ import (
 // @name Authorization
 // @description Enter your bearer token in the format: Bearer {token}
 
-func main() {
-	// Load configuration
-	cfg := config.Load()
+func provideConfig() *config.Config {
+	return config.Load()
+}
 
-	// Initialize logger
-	log := logger.New(&logger.Config{
+func provideLogger(cfg *config.Config) logger.Logger {
+	return logger.New(&logger.Config{
 		Level:       cfg.LogLevel,
 		Environment: cfg.AppEnv,
 		LogFormat:   cfg.LogFormat,
 		ServiceName: cfg.ServiceName,
 	})
+}
 
-	log.Info(context.Background(), "Starting ALumiEye API server",
-		logger.Str("env", cfg.AppEnv),
-		logger.Str("log_level", cfg.LogLevel),
-	)
-
-	// Connect to database
+func provideDatabase(lc fx.Lifecycle, cfg *config.Config, log logger.Logger) *db.DB {
 	database, err := db.Connect(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatal(context.Background(), "Failed to connect to database", logger.Err(err))
+		log.Error(context.Background(), "Failed to connect to database", logger.Err(err))
+		panic(err)
 	}
-	defer database.Close()
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			return database.Close()
+		},
+	})
 	log.Info(context.Background(), "Connected to database")
+	return database
+}
 
-	// Initialize repositories
-	userRepo := user.NewRepository(database)
-	identityRepo := identity.NewRepository(database)
-	sessionRepo := session.NewRepository(database)
-	verificationRepo := verification.NewRepository(database)
-
-	// Initialize email sender (Resend or no-op if not configured)
-	var emailSender email.Sender
+func provideEmailSender(log logger.Logger, cfg *config.Config) email.Sender {
 	if cfg.ResendAPIKey != "" {
-		emailSender = email.NewResendSender(log, cfg.ResendAPIKey, cfg.EmailFrom)
-	} else {
-		emailSender = &email.NoopSender{}
+		return email.NewResendSender(log, cfg.ResendAPIKey, cfg.EmailFrom)
 	}
+	return &email.NoopSender{}
+}
 
-	// Initialize verification service
-	verificationService := verification.NewService(
-		log,
-		verificationRepo,
-		identityRepo,
-		emailSender,
-		cfg.EmailVerificationTTL,
-		cfg.AppVerifyURLBase,
-	)
+var ReposModule = fx.Module("repos",
+	fx.Provide(
+		repositories.NewUserRepository,
+		repositories.NewIdentityRepository,
+		repositories.NewSessionRepository,
+		repositories.NewVerificationRepository,
+	),
+)
 
-	// Initialize token service
-	tokenService := auth.NewTokenService(cfg.JWTSecret, cfg.AccessTokenTTL)
+var ServicesModule = fx.Module("services",
+	fx.Provide(
+		provideEmailSender,
+		verification.NewService,
+		auth.NewTokenService,
+		auth.NewService,
+	),
+)
 
-	// Initialize auth service
-	authService := auth.NewService(
-		log,
-		userRepo,
-		identityRepo,
-		sessionRepo,
-		tokenService,
-		verificationService,
-		cfg.RefreshTokenTTL,
-	)
+func provideAuthHandler(authService *auth.Service) *auth.Handler {
+	return auth.NewHandler(authService)
+}
 
-	// Initialize handlers
-	authHandler := auth.NewHandler(authService)
+func provideRouter(authHandler *auth.Handler, tokenService *auth.TokenService) *routes.Router {
+	return routes.NewRouter(authHandler, tokenService)
+}
 
-	// Setup router: middleware first (chi requires this), then routes
-	router := routes.NewRouter(authHandler, tokenService)
+func provideMux(router *routes.Router, log logger.Logger) *chi.Mux {
 	router.Use(middleware.RealIP)
 	router.Use(middlewares.TraceID())
 	router.Use(middlewares.CORS)
 	router.Use(middlewares.Logging(log))
 	router.Use(middlewares.Recovery(log))
-	mux := router.Setup()
+	return router.Setup()
+}
 
-	// Create HTTP server
+func startServer(lc fx.Lifecycle, mux *chi.Mux, cfg *config.Config, log logger.Logger) {
+	log.Info(context.Background(), "Starting ALumiEye API server",
+		logger.Str("env", cfg.AppEnv),
+		logger.Str("log_level", cfg.LogLevel),
+	)
+
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      mux,
@@ -127,32 +124,49 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Start server in a goroutine
-	go func() {
-		log.Info(context.Background(), "Server listening",
-			logger.Str("port", cfg.Port),
-			logger.Str("swagger_url", "http://localhost:"+cfg.Port+"/docs/"),
-		)
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			go func() {
+				log.Info(context.Background(), "Server listening",
+					logger.Str("port", cfg.Port),
+					logger.Str("swagger_url", "http://localhost:"+cfg.Port+"/docs/"),
+				)
+				if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+					log.Fatal(context.Background(), "Server error", logger.Err(err))
+				}
+			}()
+			return nil
+		},
+		OnStop: func(ctx context.Context) error {
+			log.Info(context.Background(), "Shutting down server...")
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				log.Error(ctx, "Server forced to shutdown", logger.Err(err))
+				return err
+			}
+			log.Info(context.Background(), "Server stopped")
+			return nil
+		},
+	})
+}
 
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal(context.Background(), "Server error", logger.Err(err))
-		}
-	}()
-
-	// Wait for interrupt signal to gracefully shutdown the server
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-
-	log.Info(context.Background(), "Shutting down server...")
-
-	// Give outstanding requests a deadline for completion
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	if err := server.Shutdown(ctx); err != nil {
-		log.Error(ctx, "Server forced to shutdown", logger.Err(err))
-	}
-
-	log.Info(context.Background(), "Server stopped")
+func main() {
+	fx.New(
+		fx.Provide(
+			provideConfig,
+			provideLogger,
+			provideDatabase,
+		),
+		ReposModule,
+		ServicesModule,
+		fx.Provide(
+			provideAuthHandler,
+			provideRouter,
+			provideMux,
+		),
+		fx.Invoke(
+			startServer,
+		),
+	).Run()
 }

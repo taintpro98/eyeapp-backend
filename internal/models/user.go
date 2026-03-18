@@ -1,29 +1,27 @@
-package user
+package models
 
-import (
-	"time"
-)
+import "time"
 
-type Status string
+type UserStatus string
 
 const (
-	StatusActive  Status = "active"
-	StatusBlocked Status = "blocked"
+	UserStatusActive  UserStatus = "active"
+	UserStatusBlocked UserStatus = "blocked"
 )
 
-type Role string
+type UserRole string
 
 const (
-	RoleUser  Role = "user"
-	RoleAdmin Role = "admin"
+	UserRoleUser  UserRole = "user"
+	UserRoleAdmin UserRole = "admin"
 )
 
 type User struct {
 	ID          string     `json:"id"`
 	Email       string     `json:"email"`
 	DisplayName string     `json:"display_name"`
-	Status      Status     `json:"status"`
-	Role        Role       `json:"role"`
+	Status      UserStatus `json:"status"`
+	Role        UserRole   `json:"role"`
 	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`

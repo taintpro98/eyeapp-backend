@@ -7,8 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alumieye/eyeapp-backend/internal/email"
-	"github.com/alumieye/eyeapp-backend/internal/identity"
+	"github.com/alumieye/eyeapp-backend/internal/config"
+	"github.com/alumieye/eyeapp-backend/pkg/email"
+	"github.com/alumieye/eyeapp-backend/internal/models"
+	"github.com/alumieye/eyeapp-backend/internal/repositories"
 	"github.com/alumieye/eyeapp-backend/internal/platform/crypto"
 	"github.com/alumieye/eyeapp-backend/pkg/logger"
 )
@@ -19,36 +21,30 @@ var (
 	ErrTokenAlreadyConsumed      = errors.New("verification token already used")
 )
 
-// Service handles email verification logic
 type Service struct {
 	log           logger.Logger
-	repo          Repository
-	identityRepo  identity.Repository
+	repo          repositories.VerificationRepository
+	identityRepo  repositories.IdentityRepository
 	emailSender   email.Sender
-	ttl           time.Duration
-	verifyURLBase string
+	cfg           *config.Config
 }
 
-// NewService creates a new verification service
 func NewService(
+	cfg *config.Config,
 	log logger.Logger,
-	repo Repository,
-	identityRepo identity.Repository,
+	repo repositories.VerificationRepository,
+	identityRepo repositories.IdentityRepository,
 	emailSender email.Sender,
-	ttl time.Duration,
-	verifyURLBase string,
 ) *Service {
 	return &Service{
-		log:           log,
-		repo:          repo,
-		identityRepo:  identityRepo,
-		emailSender:   emailSender,
-		ttl:           ttl,
-		verifyURLBase: strings.TrimSuffix(verifyURLBase, "/"),
+		log:          log,
+		repo:         repo,
+		identityRepo: identityRepo,
+		emailSender:  emailSender,
+		cfg:          cfg,
 	}
 }
 
-// VerifyToken validates a raw token and marks the identity as verified
 func (s *Service) VerifyToken(ctx context.Context, rawToken string) error {
 	if rawToken == "" {
 		return ErrInvalidVerificationToken
@@ -58,7 +54,7 @@ func (s *Service) VerifyToken(ctx context.Context, rawToken string) error {
 
 	token, err := s.repo.GetByTokenHash(ctx, tokenHash)
 	if err != nil {
-		if errors.Is(err, ErrTokenNotFound) {
+		if errors.Is(err, repositories.ErrVerificationTokenNotFound) {
 			return ErrInvalidVerificationToken
 		}
 		return err
@@ -72,12 +68,10 @@ func (s *Service) VerifyToken(ctx context.Context, rawToken string) error {
 		return ErrVerificationTokenExpired
 	}
 
-	// Mark token as consumed
 	if err := s.repo.MarkConsumed(ctx, token.ID); err != nil {
 		return err
 	}
 
-	// Mark password identity as verified
 	identities, err := s.identityRepo.GetByUserID(ctx, token.UserID)
 	if err != nil {
 		return err
@@ -85,7 +79,7 @@ func (s *Service) VerifyToken(ctx context.Context, rawToken string) error {
 
 	now := time.Now()
 	for _, ident := range identities {
-		if ident.Provider == identity.ProviderPassword {
+		if ident.Provider == models.IdentityProviderPassword {
 			return s.identityRepo.UpdateVerifiedAt(ctx, ident.ID, &now)
 		}
 	}
@@ -93,7 +87,6 @@ func (s *Service) VerifyToken(ctx context.Context, rawToken string) error {
 	return nil
 }
 
-// CreateAndSendToken creates a verification token and sends the email
 func (s *Service) CreateAndSendToken(ctx context.Context, userID, emailAddr string) error {
 	rawToken, err := crypto.GenerateRandomToken(32)
 	if err != nil {
@@ -101,9 +94,9 @@ func (s *Service) CreateAndSendToken(ctx context.Context, userID, emailAddr stri
 	}
 
 	tokenHash := crypto.HashToken(rawToken)
-	expiresAt := time.Now().Add(s.ttl)
+	expiresAt := time.Now().Add(s.cfg.EmailVerificationTTL)
 
-	token := &Token{
+	token := &models.VerificationToken{
 		UserID:    userID,
 		TokenHash: tokenHash,
 		ExpiresAt: expiresAt,
@@ -113,26 +106,21 @@ func (s *Service) CreateAndSendToken(ctx context.Context, userID, emailAddr stri
 		return err
 	}
 
-	verifyURL := fmt.Sprintf("%s?token=%s", s.verifyURLBase, rawToken)
+	verifyURL := fmt.Sprintf("%s?token=%s", strings.TrimSuffix(s.cfg.AppVerifyURLBase, "/"), rawToken)
 
-	if s.emailSender != nil {
-		if err := s.emailSender.SendVerificationEmail(ctx, emailAddr, verifyURL); err != nil {
-			// Log but don't fail - token is stored, user can resend
-			return err
-		}
+	if err := s.emailSender.SendVerificationEmail(ctx, emailAddr, verifyURL); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-// ResendVerification sends a new verification email if the account exists and is not verified
-// Returns nil in all cases to avoid leaking account existence
 func (s *Service) ResendVerification(ctx context.Context, emailAddr string) error {
 	emailAddr = normalizeEmail(emailAddr)
 
-	ident, err := s.identityRepo.GetByProviderAndEmail(ctx, identity.ProviderPassword, emailAddr)
+	ident, err := s.identityRepo.GetByProviderAndEmail(ctx, models.IdentityProviderPassword, emailAddr)
 	if err != nil {
-		if errors.Is(err, identity.ErrIdentityNotFound) {
+		if errors.Is(err, repositories.ErrIdentityNotFound) {
 			return nil // Don't leak
 		}
 		return err

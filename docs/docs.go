@@ -475,7 +475,8 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_alumieye_eyeapp-backend_internal_user.UserResponse": {
+        "github_com_alumieye_eyeapp-backend_internal_models.UserResponse": {
+            "description": "User public profile",
             "type": "object",
             "properties": {
                 "display_name": {
@@ -507,7 +508,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/internal_auth.TokensResponse"
                 },
                 "user": {
-                    "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_user.UserResponse"
+                    "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_models.UserResponse"
                 }
             }
         },
@@ -537,7 +538,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "user": {
-                    "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_user.UserResponse"
+                    "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_models.UserResponse"
                 }
             }
         },

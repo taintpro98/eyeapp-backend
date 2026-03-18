@@ -1,9 +1,9 @@
-package verification
+package models
 
 import "time"
 
-// Token represents an email verification token record
-type Token struct {
+// VerificationToken represents an email verification token record
+type VerificationToken struct {
 	ID         string
 	UserID     string
 	TokenHash  string
@@ -13,11 +13,11 @@ type Token struct {
 }
 
 // IsConsumed returns true if the token has been used
-func (t *Token) IsConsumed() bool {
+func (t *VerificationToken) IsConsumed() bool {
 	return t.ConsumedAt != nil
 }
 
 // IsExpired returns true if the token has expired
-func (t *Token) IsExpired() bool {
+func (t *VerificationToken) IsExpired() bool {
 	return time.Now().After(t.ExpiresAt)
 }
