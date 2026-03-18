@@ -54,7 +54,11 @@ func provideLogger(cfg *config.Config) logger.Logger {
 }
 
 func provideDatabase(lc fx.Lifecycle, cfg *config.Config, log logger.Logger) *db.DB {
-	database, err := db.Connect(cfg.DatabaseURL)
+	database, err := db.Connect(cfg.DatabaseURL, db.PoolConfig{
+		MaxOpenConns:    cfg.DBMaxOpenConns,
+		MaxIdleConns:    cfg.DBMaxIdleConns,
+		ConnMaxLifetime: cfg.DBConnMaxLifetime,
+	})
 	if err != nil {
 		log.Error(context.Background(), "Failed to connect to database", logger.Err(err))
 		panic(err)

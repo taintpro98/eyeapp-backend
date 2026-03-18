@@ -36,12 +36,20 @@ type emailConfig struct {
 	VerificationTokenTTLHours int `yaml:"verification_token_ttl_hours"`
 }
 
+// databaseConfig holds database pool settings from config.yml
+type databaseConfig struct {
+	MaxOpenConns           int `yaml:"max_open_conns"`
+	MaxIdleConns           int `yaml:"max_idle_conns"`
+	ConnMaxLifetimeMinutes int `yaml:"conn_max_lifetime_minutes"`
+}
+
 // yamlConfig matches the structure of configs/config.yml
 type yamlConfig struct {
-	App     appConfig     `yaml:"app"`
-	Server  serverConfig  `yaml:"server"`
-	Logging loggingConfig `yaml:"logging"`
-	Email   emailConfig   `yaml:"email"`
+	App      appConfig      `yaml:"app"`
+	Server   serverConfig   `yaml:"server"`
+	Logging  loggingConfig  `yaml:"logging"`
+	Email    emailConfig    `yaml:"email"`
+	Database databaseConfig `yaml:"database"`
 }
 
 type Config struct {
@@ -54,11 +62,13 @@ type Config struct {
 	LogLevel        string
 	LogFormat       string
 	ServiceName     string
-	// Email verification
 	EmailVerificationTTL time.Duration
 	ResendAPIKey        string
 	EmailFrom           string
 	AppVerifyURLBase    string
+	DBMaxOpenConns      int
+	DBMaxIdleConns      int
+	DBConnMaxLifetime   time.Duration
 }
 
 func Load() *Config {
@@ -78,6 +88,9 @@ func Load() *Config {
 		ResendAPIKey:           "",
 		EmailFrom:              "",
 		AppVerifyURLBase:       "http://localhost:5173/verify-email",
+		DBMaxOpenConns:         25,
+		DBMaxIdleConns:         5,
+		DBConnMaxLifetime:      5 * time.Minute,
 	}
 
 	// Load public config from configs/config.yml
@@ -107,6 +120,15 @@ func Load() *Config {
 		if yc.Email.VerificationTokenTTLHours > 0 {
 			cfg.EmailVerificationTTL = time.Duration(yc.Email.VerificationTokenTTLHours) * time.Hour
 		}
+		if yc.Database.MaxOpenConns > 0 {
+			cfg.DBMaxOpenConns = yc.Database.MaxOpenConns
+		}
+		if yc.Database.MaxIdleConns > 0 {
+			cfg.DBMaxIdleConns = yc.Database.MaxIdleConns
+		}
+		if yc.Database.ConnMaxLifetimeMinutes > 0 {
+			cfg.DBConnMaxLifetime = time.Duration(yc.Database.ConnMaxLifetimeMinutes) * time.Minute
+		}
 	}
 
 	// Secrets: from environment only (no defaults in config.yml)
@@ -127,6 +149,11 @@ func Load() *Config {
 	cfg.ResendAPIKey = getEnv("RESEND_API_KEY", "")
 	cfg.EmailFrom = getEnv("EMAIL_FROM", "ALumiEye <onboarding@resend.dev>")
 	cfg.AppVerifyURLBase = getEnv("APP_VERIFY_URL_BASE", "http://localhost:5173/verify-email")
+	cfg.DBMaxOpenConns = getEnvAsInt("DB_MAX_OPEN_CONNS", cfg.DBMaxOpenConns)
+	cfg.DBMaxIdleConns = getEnvAsInt("DB_MAX_IDLE_CONNS", cfg.DBMaxIdleConns)
+	if mins := getEnvAsInt("DB_CONN_MAX_LIFETIME_MINUTES", 5); mins > 0 {
+		cfg.DBConnMaxLifetime = time.Duration(mins) * time.Minute
+	}
 
 	return cfg
 }
