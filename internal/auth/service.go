@@ -56,12 +56,8 @@ func NewService(
 	}
 }
 
-func (s *Service) Register(ctx context.Context, req *RegisterRequest, _ *RequestContext) (*RegisterResponse, error) {
+func (s *Service) Register(ctx context.Context, req RegisterRequest, _ RequestContext) (*RegisterResponse, error) {
 	s.log.Info(ctx, "Register", logger.Str("service", "auth"), logger.Str("email", req.Email), logger.Str("display_name", req.DisplayName))
-
-	if err := s.validateRegisterRequest(req); err != nil {
-		return nil, err
-	}
 
 	emailAddr := normalizeEmail(req.Email)
 
@@ -111,12 +107,8 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest, _ *Request
 	}, nil
 }
 
-func (s *Service) Login(ctx context.Context, req *LoginRequest, reqCtx *RequestContext) (*AuthResponse, error) {
+func (s *Service) Login(ctx context.Context, req LoginRequest, reqCtx RequestContext) (*AuthResponse, error) {
 	s.log.Info(ctx, "Login", logger.Str("service", "auth"), logger.Str("email", req.Email))
-
-	if err := s.validateLoginRequest(req); err != nil {
-		return nil, err
-	}
 
 	email := normalizeEmail(req.Email)
 
@@ -158,12 +150,8 @@ func (s *Service) Login(ctx context.Context, req *LoginRequest, reqCtx *RequestC
 	return s.createSessionAndTokens(ctx, usr, reqCtx)
 }
 
-func (s *Service) Refresh(ctx context.Context, req *RefreshRequest, reqCtx *RequestContext) (*AuthResponse, error) {
+func (s *Service) Refresh(ctx context.Context, req RefreshRequest, reqCtx RequestContext) (*AuthResponse, error) {
 	s.log.Info(ctx, "Refresh", logger.Str("service", "auth"), logger.Bool("refresh_token_present", req.RefreshToken != ""))
-
-	if req.RefreshToken == "" {
-		return nil, ErrInvalidRefreshToken
-	}
 
 	tokenHash := crypto.HashToken(req.RefreshToken)
 
@@ -217,7 +205,7 @@ func (s *Service) Refresh(ctx context.Context, req *RefreshRequest, reqCtx *Requ
 	}, nil
 }
 
-func (s *Service) Logout(ctx context.Context, req *LogoutRequest) error {
+func (s *Service) Logout(ctx context.Context, req LogoutRequest) error {
 	s.log.Info(ctx, "Logout", logger.Str("service", "auth"), logger.Bool("refresh_token_present", req.RefreshToken != ""))
 
 	if req.RefreshToken == "" {
@@ -255,7 +243,7 @@ func (s *Service) ResendVerificationEmail(ctx context.Context, emailAddr string)
 	return s.verificationSvc.ResendVerification(ctx, emailAddr)
 }
 
-func (s *Service) createSessionAndTokens(ctx context.Context, usr *models.User, reqCtx *RequestContext) (*AuthResponse, error) {
+func (s *Service) createSessionAndTokens(ctx context.Context, usr *models.User, reqCtx RequestContext) (*AuthResponse, error) {
 	refreshToken, err := crypto.GenerateRandomToken(32)
 	if err != nil {
 		return nil, err
@@ -268,13 +256,11 @@ func (s *Service) createSessionAndTokens(ctx context.Context, usr *models.User, 
 		RefreshTokenHash: tokenHash,
 		ExpiresAt:        time.Now().Add(s.cfg.RefreshTokenTTL),
 	}
-	if reqCtx != nil {
-		if reqCtx.UserAgent != "" {
-			sess.UserAgent = &reqCtx.UserAgent
-		}
-		if reqCtx.IPAddress != "" {
-			sess.IPAddress = &reqCtx.IPAddress
-		}
+	if reqCtx.UserAgent != "" {
+		sess.UserAgent = &reqCtx.UserAgent
+	}
+	if reqCtx.IPAddress != "" {
+		sess.IPAddress = &reqCtx.IPAddress
 	}
 
 	if err := s.sessionRepo.Create(ctx, sess); err != nil {
@@ -296,29 +282,6 @@ func (s *Service) createSessionAndTokens(ctx context.Context, usr *models.User, 
 	}, nil
 }
 
-func (s *Service) validateRegisterRequest(req *RegisterRequest) error {
-	if req.Email == "" {
-		return errors.New("email is required")
-	}
-	if !isValidEmail(req.Email) {
-		return errors.New("invalid email format")
-	}
-	if len(req.Password) < 8 {
-		return errors.New("password must be at least 8 characters")
-	}
-	return nil
-}
-
-func (s *Service) validateLoginRequest(req *LoginRequest) error {
-	if req.Email == "" {
-		return errors.New("email is required")
-	}
-	if req.Password == "" {
-		return errors.New("password is required")
-	}
-	return nil
-}
-
 func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
@@ -331,15 +294,3 @@ func isUniqueViolation(err error) bool {
 	return false
 }
 
-func isValidEmail(email string) bool {
-	email = strings.TrimSpace(email)
-	if len(email) < 3 || len(email) > 254 {
-		return false
-	}
-	atIndex := strings.Index(email, "@")
-	if atIndex < 1 || atIndex >= len(email)-1 {
-		return false
-	}
-	dotIndex := strings.LastIndex(email[atIndex:], ".")
-	return dotIndex > 1 && dotIndex < len(email[atIndex:])-1
-}

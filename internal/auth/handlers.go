@@ -37,10 +37,14 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		apierrors.ValidationError(w, "Invalid request body")
 		return
 	}
+	if err := req.Validate(); err != nil {
+		apierrors.ValidationError(w, err.Error())
+		return
+	}
 
 	reqCtx := extractRequestContext(r)
 
-	resp, err := h.service.Register(r.Context(), &req, reqCtx)
+	resp, err := h.service.Register(r.Context(), req, reqCtx)
 	if err != nil {
 		h.handleAuthError(w, err)
 		return
@@ -68,10 +72,14 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		apierrors.ValidationError(w, "Invalid request body")
 		return
 	}
+	if err := req.Validate(); err != nil {
+		apierrors.ValidationError(w, err.Error())
+		return
+	}
 
 	reqCtx := extractRequestContext(r)
 
-	resp, err := h.service.Login(r.Context(), &req, reqCtx)
+	resp, err := h.service.Login(r.Context(), req, reqCtx)
 	if err != nil {
 		h.handleAuthError(w, err)
 		return
@@ -97,10 +105,14 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 		apierrors.ValidationError(w, "Invalid request body")
 		return
 	}
+	if err := req.Validate(); err != nil {
+		apierrors.ValidationError(w, err.Error())
+		return
+	}
 
 	reqCtx := extractRequestContext(r)
 
-	resp, err := h.service.Refresh(r.Context(), &req, reqCtx)
+	resp, err := h.service.Refresh(r.Context(), req, reqCtx)
 	if err != nil {
 		h.handleAuthError(w, err)
 		return
@@ -127,9 +139,8 @@ func (h *Handler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 		apierrors.ValidationError(w, "Invalid request body")
 		return
 	}
-
-	if req.Token == "" {
-		apierrors.Error(w, http.StatusBadRequest, apierrors.CodeInvalidVerificationToken, "Token is required")
+	if err := req.Validate(); err != nil {
+		apierrors.ValidationError(w, err.Error())
 		return
 	}
 
@@ -159,9 +170,8 @@ func (h *Handler) ResendVerificationEmail(w http.ResponseWriter, r *http.Request
 		apierrors.ValidationError(w, "Invalid request body")
 		return
 	}
-
-	if req.Email == "" {
-		apierrors.ValidationError(w, "Email is required")
+	if err := req.Validate(); err != nil {
+		apierrors.ValidationError(w, err.Error())
 		return
 	}
 
@@ -190,7 +200,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		req = LogoutRequest{}
 	}
 
-	if err := h.service.Logout(r.Context(), &req); err != nil {
+	if err := h.service.Logout(r.Context(), req); err != nil {
 		apierrors.InternalError(w)
 		return
 	}
@@ -242,15 +252,6 @@ func (h *Handler) handleAuthError(w http.ResponseWriter, err error) {
 	case errors.Is(err, ErrSessionRevoked):
 		apierrors.Error(w, http.StatusUnauthorized, apierrors.CodeInvalidRefreshToken, "Session has been revoked")
 	default:
-		// Check for validation errors
-		if err.Error() != "" && (
-			err.Error() == "email is required" ||
-			err.Error() == "invalid email format" ||
-			err.Error() == "password is required" ||
-			err.Error() == "password must be at least 8 characters") {
-			apierrors.ValidationError(w, err.Error())
-			return
-		}
 		apierrors.InternalError(w)
 	}
 }
@@ -268,8 +269,8 @@ func (h *Handler) handleVerifyError(w http.ResponseWriter, err error) {
 }
 
 // extractRequestContext extracts context information from the HTTP request
-func extractRequestContext(r *http.Request) *RequestContext {
-	return &RequestContext{
+func extractRequestContext(r *http.Request) RequestContext {
+	return RequestContext{
 		UserAgent: r.UserAgent(),
 		IPAddress: getClientIP(r),
 	}
