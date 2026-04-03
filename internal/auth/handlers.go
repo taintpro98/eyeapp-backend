@@ -30,7 +30,7 @@ func NewHandler(service *Service) *Handler {
 // @Failure 400 {object} apierrors.ErrorResponse "Validation error"
 // @Failure 409 {object} apierrors.ErrorResponse "Email already exists"
 // @Failure 500 {object} apierrors.ErrorResponse "Internal server error"
-// @Router /auth/register [post]
+// @Router /api/v1/auth/register [post]
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var req RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -65,7 +65,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} apierrors.ErrorResponse "Invalid credentials"
 // @Failure 403 {object} apierrors.ErrorResponse "Account blocked"
 // @Failure 500 {object} apierrors.ErrorResponse "Internal server error"
-// @Router /auth/login [post]
+// @Router /api/v1/auth/login [post]
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -98,7 +98,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} AuthResponse "Tokens refreshed successfully"
 // @Failure 401 {object} apierrors.ErrorResponse "Invalid or expired refresh token"
 // @Failure 500 {object} apierrors.ErrorResponse "Internal server error"
-// @Router /auth/refresh [post]
+// @Router /api/v1/auth/refresh [post]
 func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 	var req RefreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -132,7 +132,7 @@ func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
 // @Failure 400 {object} apierrors.ErrorResponse "Invalid token"
 // @Failure 410 {object} apierrors.ErrorResponse "Token expired"
 // @Failure 500 {object} apierrors.ErrorResponse "Internal server error"
-// @Router /auth/verify-email [post]
+// @Router /api/v1/auth/verify-email [post]
 func (h *Handler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 	var req VerifyEmailRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -163,7 +163,7 @@ func (h *Handler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} MessageResponse "Generic success message"
 // @Failure 400 {object} apierrors.ErrorResponse "Validation error"
 // @Failure 500 {object} apierrors.ErrorResponse "Internal server error"
-// @Router /auth/resend-verification-email [post]
+// @Router /api/v1/auth/resend-verification-email [post]
 func (h *Handler) ResendVerificationEmail(w http.ResponseWriter, r *http.Request) {
 	var req ResendVerificationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -192,7 +192,7 @@ func (h *Handler) ResendVerificationEmail(w http.ResponseWriter, r *http.Request
 // @Param request body LogoutRequest false "Refresh token to revoke"
 // @Success 200 {object} map[string]string "Logout successful"
 // @Failure 500 {object} apierrors.ErrorResponse "Internal server error"
-// @Router /auth/logout [post]
+// @Router /api/v1/auth/logout [post]
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	var req LogoutRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -217,7 +217,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} MeResponse "User profile"
 // @Failure 401 {object} apierrors.ErrorResponse "Unauthorized"
 // @Failure 500 {object} apierrors.ErrorResponse "Internal server error"
-// @Router /me [get]
+// @Router /api/v1/me [get]
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	userID, ok := GetUserIDFromContext(r.Context())
 	if !ok {

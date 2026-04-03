@@ -244,6 +244,8 @@ func (s *Service) ResendVerificationEmail(ctx context.Context, emailAddr string)
 }
 
 func (s *Service) createSessionAndTokens(ctx context.Context, usr *models.User, reqCtx RequestContext) (*AuthResponse, error) {
+	const platform = "web"
+
 	refreshToken, err := crypto.GenerateRandomToken(32)
 	if err != nil {
 		return nil, err
@@ -254,6 +256,7 @@ func (s *Service) createSessionAndTokens(ctx context.Context, usr *models.User, 
 	sess := &models.Session{
 		UserID:           usr.ID,
 		RefreshTokenHash: tokenHash,
+		Platform:         platform,
 		ExpiresAt:        time.Now().Add(s.cfg.RefreshTokenTTL),
 	}
 	if reqCtx.UserAgent != "" {
@@ -263,7 +266,19 @@ func (s *Service) createSessionAndTokens(ctx context.Context, usr *models.User, 
 		sess.IPAddress = &reqCtx.IPAddress
 	}
 
-	if err := s.sessionRepo.Create(ctx, sess); err != nil {
+	tx, err := s.sessionRepo.BeginTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	if err := tx.RevokeActiveSessionsByPlatform(ctx, usr.ID, platform); err != nil {
+		return nil, err
+	}
+	if err := tx.Create(ctx, sess); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 

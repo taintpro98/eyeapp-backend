@@ -6,6 +6,7 @@ type Session struct {
 	ID               string     `json:"id"`
 	UserID           string     `json:"user_id"`
 	RefreshTokenHash string     `json:"-"`
+	Platform         string     `json:"platform"`
 	UserAgent        *string    `json:"user_agent,omitempty"`
 	IPAddress        *string    `json:"ip_address,omitempty"`
 	ExpiresAt        time.Time  `json:"expires_at"`

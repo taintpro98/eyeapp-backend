@@ -20,8 +20,58 @@ type SessionRepository interface {
 	GetByUserID(ctx context.Context, userID string) ([]*models.Session, error)
 	Revoke(ctx context.Context, id string) error
 	RevokeAllForUser(ctx context.Context, userID string) error
+	RevokeActiveSessionsByPlatform(ctx context.Context, userID string, platform string) error
 	UpdateLastUsed(ctx context.Context, id string) error
 	UpdateRefreshToken(ctx context.Context, id string, newTokenHash string, newExpiresAt time.Time) error
+	BeginTx(ctx context.Context) (*SessionTx, error)
+}
+
+// SessionTx wraps a database transaction for atomic session operations.
+type SessionTx struct {
+	tx *sql.Tx
+}
+
+func (t *SessionTx) RevokeActiveSessionsByPlatform(ctx context.Context, userID string, platform string) error {
+	query := `
+		UPDATE auth_sessions
+		SET revoked_at = NOW()
+		WHERE user_id = $1
+		  AND platform = $2
+		  AND revoked_at IS NULL
+		  AND expires_at > NOW()
+	`
+	_, err := t.tx.ExecContext(ctx, query, userID, platform)
+	return err
+}
+
+func (t *SessionTx) Create(ctx context.Context, session *models.Session) error {
+	query := `
+		INSERT INTO auth_sessions (user_id, refresh_token_hash, platform, user_agent, ip_address, expires_at, created_at, last_used_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id
+	`
+	now := time.Now()
+	session.CreatedAt = now
+	session.LastUsedAt = now
+
+	return t.tx.QueryRowContext(ctx, query,
+		session.UserID,
+		session.RefreshTokenHash,
+		session.Platform,
+		session.UserAgent,
+		session.IPAddress,
+		session.ExpiresAt,
+		session.CreatedAt,
+		session.LastUsedAt,
+	).Scan(&session.ID)
+}
+
+func (t *SessionTx) Commit() error {
+	return t.tx.Commit()
+}
+
+func (t *SessionTx) Rollback() error {
+	return t.tx.Rollback()
 }
 
 type sessionPostgres struct {
@@ -34,8 +84,8 @@ func NewSessionRepository(database *db.DB) SessionRepository {
 
 func (r *sessionPostgres) Create(ctx context.Context, session *models.Session) error {
 	query := `
-		INSERT INTO auth_sessions (user_id, refresh_token_hash, user_agent, ip_address, expires_at, created_at, last_used_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO auth_sessions (user_id, refresh_token_hash, platform, user_agent, ip_address, expires_at, created_at, last_used_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id
 	`
 	now := time.Now()
@@ -45,6 +95,7 @@ func (r *sessionPostgres) Create(ctx context.Context, session *models.Session) e
 	err := r.db.QueryRowContext(ctx, query,
 		session.UserID,
 		session.RefreshTokenHash,
+		session.Platform,
 		session.UserAgent,
 		session.IPAddress,
 		session.ExpiresAt,
@@ -57,7 +108,7 @@ func (r *sessionPostgres) Create(ctx context.Context, session *models.Session) e
 
 func (r *sessionPostgres) GetByRefreshTokenHash(ctx context.Context, tokenHash string) (*models.Session, error) {
 	query := `
-		SELECT id, user_id, refresh_token_hash, user_agent, ip_address, expires_at, revoked_at, created_at, last_used_at
+		SELECT id, user_id, refresh_token_hash, platform, user_agent, ip_address, expires_at, revoked_at, created_at, last_used_at
 		FROM auth_sessions
 		WHERE refresh_token_hash = $1
 	`
@@ -66,6 +117,7 @@ func (r *sessionPostgres) GetByRefreshTokenHash(ctx context.Context, tokenHash s
 		&session.ID,
 		&session.UserID,
 		&session.RefreshTokenHash,
+		&session.Platform,
 		&session.UserAgent,
 		&session.IPAddress,
 		&session.ExpiresAt,
@@ -84,7 +136,7 @@ func (r *sessionPostgres) GetByRefreshTokenHash(ctx context.Context, tokenHash s
 
 func (r *sessionPostgres) GetByUserID(ctx context.Context, userID string) ([]*models.Session, error) {
 	query := `
-		SELECT id, user_id, refresh_token_hash, user_agent, ip_address, expires_at, revoked_at, created_at, last_used_at
+		SELECT id, user_id, refresh_token_hash, platform, user_agent, ip_address, expires_at, revoked_at, created_at, last_used_at
 		FROM auth_sessions
 		WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > NOW()
 		ORDER BY created_at DESC
@@ -102,6 +154,7 @@ func (r *sessionPostgres) GetByUserID(ctx context.Context, userID string) ([]*mo
 			&session.ID,
 			&session.UserID,
 			&session.RefreshTokenHash,
+			&session.Platform,
 			&session.UserAgent,
 			&session.IPAddress,
 			&session.ExpiresAt,
@@ -129,6 +182,21 @@ func (r *sessionPostgres) RevokeAllForUser(ctx context.Context, userID string) e
 	return err
 }
 
+// RevokeActiveSessionsByPlatform revokes all active sessions for the given user and platform.
+// Used to enforce single-session-per-platform before creating a new session.
+func (r *sessionPostgres) RevokeActiveSessionsByPlatform(ctx context.Context, userID string, platform string) error {
+	query := `
+		UPDATE auth_sessions
+		SET revoked_at = NOW()
+		WHERE user_id = $1
+		  AND platform = $2
+		  AND revoked_at IS NULL
+		  AND expires_at > NOW()
+	`
+	_, err := r.db.ExecContext(ctx, query, userID, platform)
+	return err
+}
+
 func (r *sessionPostgres) UpdateLastUsed(ctx context.Context, id string) error {
 	query := `UPDATE auth_sessions SET last_used_at = NOW() WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id)
@@ -139,4 +207,12 @@ func (r *sessionPostgres) UpdateRefreshToken(ctx context.Context, id string, new
 	query := `UPDATE auth_sessions SET refresh_token_hash = $1, expires_at = $2, last_used_at = NOW() WHERE id = $3`
 	_, err := r.db.ExecContext(ctx, query, newTokenHash, newExpiresAt, id)
 	return err
+}
+
+func (r *sessionPostgres) BeginTx(ctx context.Context) (*SessionTx, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &SessionTx{tx: tx}, nil
 }
