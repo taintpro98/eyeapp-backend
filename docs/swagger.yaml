@@ -1,16 +1,16 @@
 basePath: /
 definitions:
-  github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorBody:
+  apierrors.ErrorBody:
     properties:
       code:
         allOf:
-        - $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorCode'
+        - $ref: '#/definitions/apierrors.ErrorCode'
         example: validation_error
       message:
         example: Invalid email format
         type: string
     type: object
-  github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorCode:
+  apierrors.ErrorCode:
     enum:
     - validation_error
     - email_already_exists
@@ -38,13 +38,89 @@ definitions:
     - CodeVerificationTokenExpired
     - CodeInternalError
     - CodeNotFound
-  github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse:
+  apierrors.ErrorResponse:
     properties:
       error:
-        $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorBody'
+        $ref: '#/definitions/apierrors.ErrorBody'
     type: object
-  github_com_alumieye_eyeapp-backend_internal_models.UserResponse:
-    description: User public profile
+  auth.AuthResponse:
+    properties:
+      tokens:
+        $ref: '#/definitions/auth.TokensResponse'
+      user:
+        $ref: '#/definitions/models.UserResponse'
+    type: object
+  auth.LoginRequest:
+    properties:
+      email:
+        example: alex@gmail.com
+        type: string
+      password:
+        example: "1234"
+        type: string
+    type: object
+  auth.LogoutRequest:
+    properties:
+      refresh_token:
+        example: dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4...
+        type: string
+    type: object
+  auth.MeResponse:
+    properties:
+      user:
+        $ref: '#/definitions/models.UserResponse'
+    type: object
+  auth.MessageResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  auth.RefreshRequest:
+    properties:
+      refresh_token:
+        example: dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4...
+        type: string
+    type: object
+  auth.RegisterRequest:
+    properties:
+      display_name:
+        example: John Doe
+        type: string
+      email:
+        example: user@example.com
+        type: string
+      password:
+        example: strong_password123
+        type: string
+    type: object
+  auth.RegisterResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  auth.ResendVerificationRequest:
+    properties:
+      email:
+        type: string
+    type: object
+  auth.TokensResponse:
+    properties:
+      access_token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      expires_in:
+        example: 900
+        type: integer
+      refresh_token:
+        example: dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4...
+        type: string
+    type: object
+  auth.VerifyEmailRequest:
+    properties:
+      token:
+        type: string
+    type: object
+  models.UserResponse:
     properties:
       display_name:
         example: John Doe
@@ -62,81 +138,47 @@ definitions:
         example: active
         type: string
     type: object
-  internal_auth.AuthResponse:
+  orders.listResponse:
     properties:
-      tokens:
-        $ref: '#/definitions/internal_auth.TokensResponse'
-      user:
-        $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_models.UserResponse'
+      data:
+        items:
+          $ref: '#/definitions/orders.orderResponse'
+        type: array
+      pagination:
+        $ref: '#/definitions/orders.paginationResponse'
     type: object
-  internal_auth.LoginRequest:
+  orders.orderResponse:
     properties:
-      email:
-        example: user@example.com
-        type: string
-      password:
-        example: strong_password123
-        type: string
-    type: object
-  internal_auth.LogoutRequest:
-    properties:
-      refresh_token:
-        example: dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4...
-        type: string
-    type: object
-  internal_auth.MeResponse:
-    properties:
-      user:
-        $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_models.UserResponse'
-    type: object
-  internal_auth.MessageResponse:
-    properties:
-      message:
-        type: string
-    type: object
-  internal_auth.RefreshRequest:
-    properties:
-      refresh_token:
-        example: dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4...
-        type: string
-    type: object
-  internal_auth.RegisterRequest:
-    properties:
-      display_name:
-        example: John Doe
-        type: string
-      email:
-        example: user@example.com
-        type: string
-      password:
-        example: strong_password123
-        type: string
-    type: object
-  internal_auth.RegisterResponse:
-    properties:
-      message:
-        type: string
-    type: object
-  internal_auth.ResendVerificationRequest:
-    properties:
-      email:
-        type: string
-    type: object
-  internal_auth.TokensResponse:
-    properties:
-      access_token:
-        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-        type: string
-      expires_in:
-        example: 900
+      candle_id:
         type: integer
-      refresh_token:
-        example: dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4...
+      created_at:
+        type: string
+      id:
+        type: integer
+      main_position:
+        type: boolean
+      order_type:
+        type: string
+      price:
+        type: number
+      quantity:
+        type: number
+      side:
+        type: string
+      symbol:
+        type: string
+      timestamp:
+        type: integer
+      timestamp_str:
         type: string
     type: object
-  internal_auth.VerifyEmailRequest:
+  orders.paginationResponse:
     properties:
-      token:
+      has_more:
+        type: boolean
+      limit:
+        type: integer
+      next_cursor:
         type: string
     type: object
 host: localhost:8080
@@ -152,7 +194,7 @@ info:
   title: ALumiEye API
   version: "1.0"
 paths:
-  /auth/login:
+  /api/v1/auth/login:
     post:
       consumes:
       - application/json
@@ -163,34 +205,34 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_auth.LoginRequest'
+          $ref: '#/definitions/auth.LoginRequest'
       produces:
       - application/json
       responses:
         "200":
           description: Login successful
           schema:
-            $ref: '#/definitions/internal_auth.AuthResponse'
+            $ref: '#/definitions/auth.AuthResponse'
         "400":
           description: Validation error
           schema:
-            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+            $ref: '#/definitions/apierrors.ErrorResponse'
         "401":
           description: Invalid credentials
           schema:
-            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+            $ref: '#/definitions/apierrors.ErrorResponse'
         "403":
           description: Account blocked
           schema:
-            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+            $ref: '#/definitions/apierrors.ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+            $ref: '#/definitions/apierrors.ErrorResponse'
       summary: Login user
       tags:
       - auth
-  /auth/logout:
+  /api/v1/auth/logout:
     post:
       consumes:
       - application/json
@@ -200,7 +242,7 @@ paths:
         in: body
         name: request
         schema:
-          $ref: '#/definitions/internal_auth.LogoutRequest'
+          $ref: '#/definitions/auth.LogoutRequest'
       produces:
       - application/json
       responses:
@@ -213,11 +255,11 @@ paths:
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+            $ref: '#/definitions/apierrors.ErrorResponse'
       summary: Logout user
       tags:
       - auth
-  /auth/refresh:
+  /api/v1/auth/refresh:
     post:
       consumes:
       - application/json
@@ -228,26 +270,26 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_auth.RefreshRequest'
+          $ref: '#/definitions/auth.RefreshRequest'
       produces:
       - application/json
       responses:
         "200":
           description: Tokens refreshed successfully
           schema:
-            $ref: '#/definitions/internal_auth.AuthResponse'
+            $ref: '#/definitions/auth.AuthResponse'
         "401":
           description: Invalid or expired refresh token
           schema:
-            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+            $ref: '#/definitions/apierrors.ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+            $ref: '#/definitions/apierrors.ErrorResponse'
       summary: Refresh access token
       tags:
       - auth
-  /auth/register:
+  /api/v1/auth/register:
     post:
       consumes:
       - application/json
@@ -259,30 +301,30 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_auth.RegisterRequest'
+          $ref: '#/definitions/auth.RegisterRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Registration successful
           schema:
-            $ref: '#/definitions/internal_auth.RegisterResponse'
+            $ref: '#/definitions/auth.RegisterResponse'
         "400":
           description: Validation error
           schema:
-            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+            $ref: '#/definitions/apierrors.ErrorResponse'
         "409":
           description: Email already exists
           schema:
-            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+            $ref: '#/definitions/apierrors.ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+            $ref: '#/definitions/apierrors.ErrorResponse'
       summary: Register a new user
       tags:
       - auth
-  /auth/resend-verification-email:
+  /api/v1/auth/resend-verification-email:
     post:
       consumes:
       - application/json
@@ -294,26 +336,26 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_auth.ResendVerificationRequest'
+          $ref: '#/definitions/auth.ResendVerificationRequest'
       produces:
       - application/json
       responses:
         "200":
           description: Generic success message
           schema:
-            $ref: '#/definitions/internal_auth.MessageResponse'
+            $ref: '#/definitions/auth.MessageResponse'
         "400":
           description: Validation error
           schema:
-            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+            $ref: '#/definitions/apierrors.ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+            $ref: '#/definitions/apierrors.ErrorResponse'
       summary: Resend verification email
       tags:
       - auth
-  /auth/verify-email:
+  /api/v1/auth/verify-email:
     post:
       consumes:
       - application/json
@@ -324,45 +366,30 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_auth.VerifyEmailRequest'
+          $ref: '#/definitions/auth.VerifyEmailRequest'
       produces:
       - application/json
       responses:
         "200":
           description: Email verified
           schema:
-            $ref: '#/definitions/internal_auth.MessageResponse'
+            $ref: '#/definitions/auth.MessageResponse'
         "400":
           description: Invalid token
           schema:
-            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+            $ref: '#/definitions/apierrors.ErrorResponse'
         "410":
           description: Token expired
           schema:
-            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+            $ref: '#/definitions/apierrors.ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+            $ref: '#/definitions/apierrors.ErrorResponse'
       summary: Verify email
       tags:
       - auth
-  /health:
-    get:
-      description: Check if the API is running
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: API is healthy
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Health check
-      tags:
-      - system
-  /me:
+  /api/v1/me:
     get:
       description: Get the profile of the currently authenticated user
       produces:
@@ -371,21 +398,78 @@ paths:
         "200":
           description: User profile
           schema:
-            $ref: '#/definitions/internal_auth.MeResponse'
+            $ref: '#/definitions/auth.MeResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+            $ref: '#/definitions/apierrors.ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+            $ref: '#/definitions/apierrors.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get current user
       tags:
       - user
-  /users/{id}:
+  /api/v1/orders:
+    get:
+      description: List trade orders from eyebroker with optional filters and cursor
+        pagination
+      parameters:
+      - description: Filter by asset symbol (e.g. ETHUSDT)
+        in: query
+        name: symbol
+        type: string
+      - description: 'Filter by side: buy or sell'
+        in: query
+        name: side
+        type: string
+      - description: Filter by order type (e.g. market, limit)
+        in: query
+        name: order_type
+        type: string
+      - description: Start of time range GMT+7 (YYYY-MM-DD HH:MM:SS)
+        in: query
+        name: from
+        type: string
+      - description: End of time range GMT+7 (YYYY-MM-DD HH:MM:SS)
+        in: query
+        name: to
+        type: string
+      - description: Page size (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Cursor from previous response for next page
+        in: query
+        name: cursor
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/orders.listResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apierrors.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/apierrors.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apierrors.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List orders
+      tags:
+      - orders
+  /api/v1/users/{id}:
     get:
       description: Get a user's public information by their ID
       parameters:
@@ -406,13 +490,28 @@ paths:
         "404":
           description: User not found
           schema:
-            $ref: '#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse'
+            $ref: '#/definitions/apierrors.ErrorResponse'
       summary: Get user by ID
       tags:
       - users
+  /health:
+    get:
+      description: Check if the API is running
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: API is healthy
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health check
+      tags:
+      - system
 securityDefinitions:
   BearerAuth:
-    description: 'Enter your bearer token in the format: Bearer {token}'
+    description: 'Type: Bearer {your_token}'
     in: header
     name: Authorization
     type: apiKey

@@ -17,7 +17,7 @@
     "host": "localhost:8080",
     "basePath": "/",
     "paths": {
-        "/auth/login": {
+        "/api/v1/auth/login": {
             "post": {
                 "description": "Authenticate a user with email and password",
                 "consumes": [
@@ -37,7 +37,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_auth.LoginRequest"
+                            "$ref": "#/definitions/auth.LoginRequest"
                         }
                     }
                 ],
@@ -45,37 +45,37 @@
                     "200": {
                         "description": "Login successful",
                         "schema": {
-                            "$ref": "#/definitions/internal_auth.AuthResponse"
+                            "$ref": "#/definitions/auth.AuthResponse"
                         }
                     },
                     "400": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
                         }
                     },
                     "401": {
                         "description": "Invalid credentials",
                         "schema": {
-                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
                         }
                     },
                     "403": {
                         "description": "Account blocked",
                         "schema": {
-                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
                         }
                     }
                 }
             }
         },
-        "/auth/logout": {
+        "/api/v1/auth/logout": {
             "post": {
                 "description": "Revoke the current session/refresh token",
                 "consumes": [
@@ -94,7 +94,7 @@
                         "name": "request",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/internal_auth.LogoutRequest"
+                            "$ref": "#/definitions/auth.LogoutRequest"
                         }
                     }
                 ],
@@ -111,13 +111,13 @@
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
                         }
                     }
                 }
             }
         },
-        "/auth/refresh": {
+        "/api/v1/auth/refresh": {
             "post": {
                 "description": "Exchange a valid refresh token for a new access token",
                 "consumes": [
@@ -137,7 +137,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_auth.RefreshRequest"
+                            "$ref": "#/definitions/auth.RefreshRequest"
                         }
                     }
                 ],
@@ -145,25 +145,25 @@
                     "200": {
                         "description": "Tokens refreshed successfully",
                         "schema": {
-                            "$ref": "#/definitions/internal_auth.AuthResponse"
+                            "$ref": "#/definitions/auth.AuthResponse"
                         }
                     },
                     "401": {
                         "description": "Invalid or expired refresh token",
                         "schema": {
-                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
                         }
                     }
                 }
             }
         },
-        "/auth/register": {
+        "/api/v1/auth/register": {
             "post": {
                 "description": "Create a new user account with email and password. User must verify email before logging in.",
                 "consumes": [
@@ -183,7 +183,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_auth.RegisterRequest"
+                            "$ref": "#/definitions/auth.RegisterRequest"
                         }
                     }
                 ],
@@ -191,31 +191,31 @@
                     "201": {
                         "description": "Registration successful",
                         "schema": {
-                            "$ref": "#/definitions/internal_auth.RegisterResponse"
+                            "$ref": "#/definitions/auth.RegisterResponse"
                         }
                     },
                     "400": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Email already exists",
                         "schema": {
-                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
                         }
                     }
                 }
             }
         },
-        "/auth/resend-verification-email": {
+        "/api/v1/auth/resend-verification-email": {
             "post": {
                 "description": "Send a new verification email if the account exists and is not verified",
                 "consumes": [
@@ -235,7 +235,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_auth.ResendVerificationRequest"
+                            "$ref": "#/definitions/auth.ResendVerificationRequest"
                         }
                     }
                 ],
@@ -243,25 +243,25 @@
                     "200": {
                         "description": "Generic success message",
                         "schema": {
-                            "$ref": "#/definitions/internal_auth.MessageResponse"
+                            "$ref": "#/definitions/auth.MessageResponse"
                         }
                     },
                     "400": {
                         "description": "Validation error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
                         }
                     }
                 }
             }
         },
-        "/auth/verify-email": {
+        "/api/v1/auth/verify-email": {
             "post": {
                 "description": "Verify email address using the token sent by email",
                 "consumes": [
@@ -281,7 +281,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_auth.VerifyEmailRequest"
+                            "$ref": "#/definitions/auth.VerifyEmailRequest"
                         }
                     }
                 ],
@@ -289,54 +289,31 @@
                     "200": {
                         "description": "Email verified",
                         "schema": {
-                            "$ref": "#/definitions/internal_auth.MessageResponse"
+                            "$ref": "#/definitions/auth.MessageResponse"
                         }
                     },
                     "400": {
                         "description": "Invalid token",
                         "schema": {
-                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
                         }
                     },
                     "410": {
                         "description": "Token expired",
                         "schema": {
-                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
                         }
                     }
                 }
             }
         },
-        "/health": {
-            "get": {
-                "description": "Check if the API is running",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "system"
-                ],
-                "summary": "Health check",
-                "responses": {
-                    "200": {
-                        "description": "API is healthy",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/me": {
+        "/api/v1/me": {
             "get": {
                 "security": [
                     {
@@ -355,25 +332,112 @@
                     "200": {
                         "description": "User profile",
                         "schema": {
-                            "$ref": "#/definitions/internal_auth.MeResponse"
+                            "$ref": "#/definitions/auth.MeResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
                         }
                     }
                 }
             }
         },
-        "/users/{id}": {
+        "/api/v1/orders": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List trade orders from eyebroker with optional filters and cursor pagination",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "orders"
+                ],
+                "summary": "List orders",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by asset symbol (e.g. ETHUSDT)",
+                        "name": "symbol",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by side: buy or sell",
+                        "name": "side",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by order type (e.g. market, limit)",
+                        "name": "order_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start of time range GMT+7 (YYYY-MM-DD HH:MM:SS)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End of time range GMT+7 (YYYY-MM-DD HH:MM:SS)",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 20, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor from previous response for next page",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/orders.listResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/users/{id}": {
             "get": {
                 "description": "Get a user's public information by their ID",
                 "produces": [
@@ -405,7 +469,30 @@
                     "404": {
                         "description": "User not found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse"
+                            "$ref": "#/definitions/apierrors.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "description": "Check if the API is running",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Health check",
+                "responses": {
+                    "200": {
+                        "description": "API is healthy",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -413,13 +500,13 @@
         }
     },
     "definitions": {
-        "github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorBody": {
+        "apierrors.ErrorBody": {
             "type": "object",
             "properties": {
                 "code": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorCode"
+                            "$ref": "#/definitions/apierrors.ErrorCode"
                         }
                     ],
                     "example": "validation_error"
@@ -430,7 +517,7 @@
                 }
             }
         },
-        "github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorCode": {
+        "apierrors.ErrorCode": {
             "type": "string",
             "enum": [
                 "validation_error",
@@ -461,16 +548,131 @@
                 "CodeNotFound"
             ]
         },
-        "github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorResponse": {
+        "apierrors.ErrorResponse": {
             "type": "object",
             "properties": {
                 "error": {
-                    "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_apierrors.ErrorBody"
+                    "$ref": "#/definitions/apierrors.ErrorBody"
                 }
             }
         },
-        "github_com_alumieye_eyeapp-backend_internal_models.UserResponse": {
-            "description": "User public profile",
+        "auth.AuthResponse": {
+            "type": "object",
+            "properties": {
+                "tokens": {
+                    "$ref": "#/definitions/auth.TokensResponse"
+                },
+                "user": {
+                    "$ref": "#/definitions/models.UserResponse"
+                }
+            }
+        },
+        "auth.LoginRequest": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "alex@gmail.com"
+                },
+                "password": {
+                    "type": "string",
+                    "example": "1234"
+                }
+            }
+        },
+        "auth.LogoutRequest": {
+            "type": "object",
+            "properties": {
+                "refresh_token": {
+                    "type": "string",
+                    "example": "dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4..."
+                }
+            }
+        },
+        "auth.MeResponse": {
+            "type": "object",
+            "properties": {
+                "user": {
+                    "$ref": "#/definitions/models.UserResponse"
+                }
+            }
+        },
+        "auth.MessageResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.RefreshRequest": {
+            "type": "object",
+            "properties": {
+                "refresh_token": {
+                    "type": "string",
+                    "example": "dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4..."
+                }
+            }
+        },
+        "auth.RegisterRequest": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string",
+                    "example": "John Doe"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "user@example.com"
+                },
+                "password": {
+                    "type": "string",
+                    "example": "strong_password123"
+                }
+            }
+        },
+        "auth.RegisterResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.ResendVerificationRequest": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                }
+            }
+        },
+        "auth.TokensResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string",
+                    "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                },
+                "expires_in": {
+                    "type": "integer",
+                    "example": 900
+                },
+                "refresh_token": {
+                    "type": "string",
+                    "example": "dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4..."
+                }
+            }
+        },
+        "auth.VerifyEmailRequest": {
+            "type": "object",
+            "properties": {
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.UserResponse": {
             "type": "object",
             "properties": {
                 "display_name": {
@@ -495,118 +697,68 @@
                 }
             }
         },
-        "internal_auth.AuthResponse": {
+        "orders.listResponse": {
             "type": "object",
             "properties": {
-                "tokens": {
-                    "$ref": "#/definitions/internal_auth.TokensResponse"
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/orders.orderResponse"
+                    }
                 },
-                "user": {
-                    "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_models.UserResponse"
+                "pagination": {
+                    "$ref": "#/definitions/orders.paginationResponse"
                 }
             }
         },
-        "internal_auth.LoginRequest": {
+        "orders.orderResponse": {
             "type": "object",
             "properties": {
-                "email": {
-                    "type": "string",
-                    "example": "user@example.com"
+                "candle_id": {
+                    "type": "integer"
                 },
-                "password": {
-                    "type": "string",
-                    "example": "strong_password123"
-                }
-            }
-        },
-        "internal_auth.LogoutRequest": {
-            "type": "object",
-            "properties": {
-                "refresh_token": {
-                    "type": "string",
-                    "example": "dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4..."
-                }
-            }
-        },
-        "internal_auth.MeResponse": {
-            "type": "object",
-            "properties": {
-                "user": {
-                    "$ref": "#/definitions/github_com_alumieye_eyeapp-backend_internal_models.UserResponse"
-                }
-            }
-        },
-        "internal_auth.MessageResponse": {
-            "type": "object",
-            "properties": {
-                "message": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "main_position": {
+                    "type": "boolean"
+                },
+                "order_type": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "quantity": {
+                    "type": "number"
+                },
+                "side": {
+                    "type": "string"
+                },
+                "symbol": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "integer"
+                },
+                "timestamp_str": {
                     "type": "string"
                 }
             }
         },
-        "internal_auth.RefreshRequest": {
+        "orders.paginationResponse": {
             "type": "object",
             "properties": {
-                "refresh_token": {
-                    "type": "string",
-                    "example": "dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4..."
-                }
-            }
-        },
-        "internal_auth.RegisterRequest": {
-            "type": "object",
-            "properties": {
-                "display_name": {
-                    "type": "string",
-                    "example": "John Doe"
+                "has_more": {
+                    "type": "boolean"
                 },
-                "email": {
-                    "type": "string",
-                    "example": "user@example.com"
+                "limit": {
+                    "type": "integer"
                 },
-                "password": {
-                    "type": "string",
-                    "example": "strong_password123"
-                }
-            }
-        },
-        "internal_auth.RegisterResponse": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_auth.ResendVerificationRequest": {
-            "type": "object",
-            "properties": {
-                "email": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_auth.TokensResponse": {
-            "type": "object",
-            "properties": {
-                "access_token": {
-                    "type": "string",
-                    "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                },
-                "expires_in": {
-                    "type": "integer",
-                    "example": 900
-                },
-                "refresh_token": {
-                    "type": "string",
-                    "example": "dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4..."
-                }
-            }
-        },
-        "internal_auth.VerifyEmailRequest": {
-            "type": "object",
-            "properties": {
-                "token": {
+                "next_cursor": {
                     "type": "string"
                 }
             }
@@ -614,7 +766,7 @@
     },
     "securityDefinitions": {
         "BearerAuth": {
-            "description": "Enter your bearer token in the format: Bearer {token}",
+            "description": "Type: Bearer {your_token}",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"

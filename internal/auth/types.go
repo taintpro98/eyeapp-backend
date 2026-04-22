@@ -27,8 +27,8 @@ func (r RegisterRequest) Validate() error {
 }
 
 type LoginRequest struct {
-	Email    string `json:"email" example:"user@example.com"`
-	Password string `json:"password" example:"strong_password123"`
+	Email    string `json:"email" example:"alex@gmail.com"`
+	Password string `json:"password" example:"1234"`
 }
 
 func (r LoginRequest) Validate() error {

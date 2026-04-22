@@ -53,9 +53,10 @@ type yamlConfig struct {
 }
 
 type Config struct {
-	AppEnv          string
-	Port            string
-	DatabaseURL     string
+	AppEnv              string
+	Port                string
+	DatabaseURL         string
+	EyebrokerDatabaseURL string
 	JWTSecret       string
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
@@ -146,6 +147,18 @@ func Load() *Config {
 		)
 	}
 	cfg.JWTSecret = getEnv("JWT_SECRET", "change_me_in_production")
+	if u := getEnv("EYEBROKER_DATABASE_URL", ""); u != "" {
+		cfg.EyebrokerDatabaseURL = u
+	} else {
+		cfg.EyebrokerDatabaseURL = buildDatabaseURL(
+			getEnv("EYEBROKER_DB_HOST", "localhost"),
+			getEnv("EYEBROKER_DB_PORT", "5433"),
+			getEnv("EYEBROKER_DB_USER", "root"),
+			getEnv("EYEBROKER_DB_PASSWORD", "123456"),
+			getEnv("EYEBROKER_DB_NAME", "eyebroker"),
+			getEnv("EYEBROKER_DB_SSL_MODE", "disable"),
+		)
+	}
 	cfg.ResendAPIKey = getEnv("RESEND_API_KEY", "")
 	cfg.EmailFrom = getEnv("EMAIL_FROM", "ALumiEye <onboarding@resend.dev>")
 	cfg.AppVerifyURLBase = getEnv("APP_VERIFY_URL_BASE", "http://localhost:5173/verify-email")

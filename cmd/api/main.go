@@ -8,6 +8,7 @@ import (
 	"github.com/alumieye/eyeapp-backend/internal/auth"
 	"github.com/alumieye/eyeapp-backend/internal/config"
 	"github.com/alumieye/eyeapp-backend/pkg/email"
+	"github.com/alumieye/eyeapp-backend/internal/orders"
 	"github.com/alumieye/eyeapp-backend/internal/repositories"
 	"github.com/alumieye/eyeapp-backend/internal/verification"
 	"github.com/alumieye/eyeapp-backend/middlewares"
@@ -38,7 +39,7 @@ import (
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
-// @description Enter your bearer token in the format: Bearer {token}
+// @description Type: Bearer {your_token}
 
 func provideConfig() *config.Config {
 	return config.Load()
@@ -72,6 +73,27 @@ func provideDatabase(lc fx.Lifecycle, cfg *config.Config, log logger.Logger) *db
 	return database
 }
 
+func provideEyebrokerDatabase(lc fx.Lifecycle, cfg *config.Config, log logger.Logger) *db.EyebrokerDB {
+	pool := db.PoolConfig{
+		MaxOpenConns:    cfg.DBMaxOpenConns,
+		MaxIdleConns:    cfg.DBMaxIdleConns,
+		ConnMaxLifetime: cfg.DBConnMaxLifetime,
+	}
+	raw, err := db.Connect(cfg.EyebrokerDatabaseURL, pool)
+	if err != nil {
+		log.Error(context.Background(), "Failed to connect to eyebroker database", logger.Err(err))
+		panic(err)
+	}
+	eyebrokerDB := &db.EyebrokerDB{DB: raw.DB}
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			return eyebrokerDB.Close()
+		},
+	})
+	log.Info(context.Background(), "Connected to eyebroker database")
+	return eyebrokerDB
+}
+
 func provideEmailSender(log logger.Logger, cfg *config.Config) email.Sender {
 	if cfg.ResendAPIKey != "" {
 		return email.NewResendSender(log, cfg.ResendAPIKey, cfg.EmailFrom)
@@ -85,6 +107,7 @@ var ReposModule = fx.Module("repos",
 		repositories.NewIdentityRepository,
 		repositories.NewSessionRepository,
 		repositories.NewVerificationRepository,
+		repositories.NewOrderRepository,
 	),
 )
 
@@ -101,8 +124,12 @@ func provideAuthHandler(authService *auth.Service) *auth.Handler {
 	return auth.NewHandler(authService)
 }
 
-func provideRouter(authHandler *auth.Handler, tokenService *auth.TokenService) *routes.Router {
-	return routes.NewRouter(authHandler, tokenService)
+func provideOrdersHandler(repo repositories.OrderRepository) *orders.Handler {
+	return orders.NewHandler(repo)
+}
+
+func provideRouter(authHandler *auth.Handler, ordersHandler *orders.Handler, tokenService *auth.TokenService) *routes.Router {
+	return routes.NewRouter(authHandler, ordersHandler, tokenService)
 }
 
 func provideMux(router *routes.Router, log logger.Logger) *chi.Mux {
@@ -161,11 +188,13 @@ func main() {
 			provideConfig,
 			provideLogger,
 			provideDatabase,
+			provideEyebrokerDatabase,
 		),
 		ReposModule,
 		ServicesModule,
 		fx.Provide(
 			provideAuthHandler,
+			provideOrdersHandler,
 			provideRouter,
 			provideMux,
 		),

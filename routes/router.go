@@ -5,6 +5,7 @@ import (
 
 	"github.com/alumieye/eyeapp-backend/internal/apierrors"
 	"github.com/alumieye/eyeapp-backend/internal/auth"
+	"github.com/alumieye/eyeapp-backend/internal/orders"
 	"github.com/alumieye/eyeapp-backend/middlewares"
 	"github.com/go-chi/chi/v5"
 
@@ -13,17 +14,19 @@ import (
 
 // Router sets up HTTP routes
 type Router struct {
-	mux          *chi.Mux
-	authHandler  *auth.Handler
-	tokenService *auth.TokenService
+	mux           *chi.Mux
+	authHandler   *auth.Handler
+	ordersHandler *orders.Handler
+	tokenService  *auth.TokenService
 }
 
 // NewRouter creates a new router
-func NewRouter(authHandler *auth.Handler, tokenService *auth.TokenService) *Router {
+func NewRouter(authHandler *auth.Handler, ordersHandler *orders.Handler, tokenService *auth.TokenService) *Router {
 	return &Router{
-		mux:          chi.NewRouter(),
-		authHandler:  authHandler,
-		tokenService: tokenService,
+		mux:           chi.NewRouter(),
+		authHandler:   authHandler,
+		ordersHandler: ordersHandler,
+		tokenService:  tokenService,
 	}
 }
 
@@ -44,6 +47,16 @@ func (r *Router) Setup() *chi.Mux {
 		httpSwagger.DeepLinking(true),
 		httpSwagger.DocExpansion("none"),
 		httpSwagger.DomID("swagger-ui"),
+		httpSwagger.UIConfig(map[string]string{
+			// Auto-prepend "Bearer " if the user pastes a raw token
+			"requestInterceptor": `(req) => {
+				const auth = req.headers['Authorization'];
+				if (auth && !auth.startsWith('Bearer ')) {
+					req.headers['Authorization'] = 'Bearer ' + auth;
+				}
+				return req;
+			}`,
+		}),
 	))
 
 	// v1 API
@@ -61,6 +74,7 @@ func (r *Router) Setup() *chi.Mux {
 			protected.Use(middlewares.Auth(r.tokenService))
 			protected.Get("/me", r.authHandler.Me)
 			protected.Get("/users/{id}", r.handleGetUser)
+			protected.Get("/orders", r.ordersHandler.List)
 		})
 	})
 

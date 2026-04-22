@@ -13,6 +13,12 @@ type DB struct {
 	*sql.DB
 }
 
+// EyebrokerDB is a named wrapper for the eyebroker database connection,
+// distinct from the main app DB so fx can inject them separately.
+type EyebrokerDB struct {
+	*sql.DB
+}
+
 type PoolConfig struct {
 	MaxOpenConns    int
 	MaxIdleConns    int
