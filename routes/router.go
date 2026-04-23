@@ -5,7 +5,7 @@ import (
 
 	"github.com/alumieye/eyeapp-backend/internal/apierrors"
 	"github.com/alumieye/eyeapp-backend/internal/auth"
-	"github.com/alumieye/eyeapp-backend/internal/orders"
+	"github.com/alumieye/eyeapp-backend/internal/signals"
 	"github.com/alumieye/eyeapp-backend/middlewares"
 	"github.com/go-chi/chi/v5"
 
@@ -14,19 +14,19 @@ import (
 
 // Router sets up HTTP routes
 type Router struct {
-	mux           *chi.Mux
-	authHandler   *auth.Handler
-	ordersHandler *orders.Handler
-	tokenService  *auth.TokenService
+	mux            *chi.Mux
+	authHandler    *auth.Handler
+	signalsHandler *signals.Handler
+	tokenService   *auth.TokenService
 }
 
 // NewRouter creates a new router
-func NewRouter(authHandler *auth.Handler, ordersHandler *orders.Handler, tokenService *auth.TokenService) *Router {
+func NewRouter(authHandler *auth.Handler, signalsHandler *signals.Handler, tokenService *auth.TokenService) *Router {
 	return &Router{
-		mux:           chi.NewRouter(),
-		authHandler:   authHandler,
-		ordersHandler: ordersHandler,
-		tokenService:  tokenService,
+		mux:            chi.NewRouter(),
+		authHandler:    authHandler,
+		signalsHandler: signalsHandler,
+		tokenService:   tokenService,
 	}
 }
 
@@ -74,7 +74,7 @@ func (r *Router) Setup() *chi.Mux {
 			protected.Use(middlewares.Auth(r.tokenService))
 			protected.Get("/me", r.authHandler.Me)
 			protected.Get("/users/{id}", r.handleGetUser)
-			protected.Get("/orders", r.ordersHandler.List)
+			protected.Get("/signals", r.signalsHandler.List)
 		})
 	})
 

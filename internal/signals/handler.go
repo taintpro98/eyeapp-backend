@@ -1,4 +1,4 @@
-package orders
+package signals
 
 import (
 	"encoding/base64"
@@ -21,20 +21,20 @@ const (
 )
 
 type Handler struct {
-	repo repositories.OrderRepository
+	repo repositories.SignalRepository
 }
 
-func NewHandler(repo repositories.OrderRepository) *Handler {
+func NewHandler(repo repositories.SignalRepository) *Handler {
 	return &Handler{repo: repo}
 }
 
-type orderResponse struct {
+type signalResponse struct {
 	ID           int64    `json:"id"`
 	Symbol       string   `json:"symbol"`
 	Timestamp    int64    `json:"timestamp"`
 	TimestampStr string   `json:"timestamp_str"`
 	Side         string   `json:"side"`
-	OrderType    string   `json:"order_type"`
+	SignalType   string   `json:"signal_type"`
 	MainPosition string   `json:"main_position"`
 	Price        float64  `json:"price"`
 	Quantity     float64  `json:"quantity"`
@@ -49,19 +49,19 @@ type paginationResponse struct {
 }
 
 type listResponse struct {
-	Data       []orderResponse    `json:"data"`
+	Data       []signalResponse   `json:"data"`
 	Pagination paginationResponse `json:"pagination"`
 }
 
-// List handles GET /api/v1/orders
-// @Summary List orders
-// @Description List trade orders from eyebroker with optional filters and cursor pagination
-// @Tags orders
+// List handles GET /api/v1/signals
+// @Summary List signals
+// @Description List trade signals from eyebroker with optional filters and cursor pagination
+// @Tags signals
 // @Produce json
 // @Security BearerAuth
 // @Param symbol     query string false "Filter by asset symbol (e.g. ETHUSDT)"
 // @Param side       query string false "Filter by side: buy or sell"
-// @Param order_type query string false "Filter by order type (e.g. market, limit)"
+// @Param signal_type query string false "Filter by signal type (e.g. market, limit)"
 // @Param from       query string false "Start of time range GMT+7 (YYYY-MM-DD HH:MM:SS)"
 // @Param to         query string false "End of time range GMT+7 (YYYY-MM-DD HH:MM:SS)"
 // @Param limit      query int    false "Page size (default 20, max 100)"
@@ -70,7 +70,7 @@ type listResponse struct {
 // @Failure 400 {object} apierrors.ErrorResponse
 // @Failure 401 {object} apierrors.ErrorResponse
 // @Failure 500 {object} apierrors.ErrorResponse
-// @Router /api/v1/orders [get]
+// @Router /api/v1/signals [get]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
@@ -127,10 +127,10 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		cursorID = &id
 	}
 
-	filter := repositories.OrderFilter{
+	filter := repositories.SignalFilter{
 		Symbol:    q.Get("symbol"),
 		Side:      side,
-		OrderType: q.Get("order_type"),
+		SignalType: q.Get("signal_type"),
 		FromMS:    fromMS,
 		ToMS:      toMS,
 		CursorTS:  cursorTS,
@@ -149,9 +149,9 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		rows = rows[:limit]
 	}
 
-	data := make([]orderResponse, len(rows))
-	for i, o := range rows {
-		data[i] = toResponse(o)
+	data := make([]signalResponse, len(rows))
+	for i, s := range rows {
+		data[i] = toResponse(s)
 	}
 
 	var nextCursor *string
@@ -171,19 +171,19 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func toResponse(o *models.Order) orderResponse {
-	return orderResponse{
-		ID:           o.ID,
-		Symbol:       o.Symbol,
-		Timestamp:    o.Timestamp,
-		TimestampStr: o.TimestampStr,
-		Side:         o.Side,
-		OrderType:    o.OrderType,
-		MainPosition: o.MainPosition,
-		Price:        o.Price,
-		Quantity:     o.Quantity,
-		CandleID:     o.CandleID,
-		CreatedAt:    o.CreatedAt.UTC().Format(time.RFC3339),
+func toResponse(s *models.Signal) signalResponse {
+	return signalResponse{
+		ID:           s.ID,
+		Symbol:       s.Symbol,
+		Timestamp:    s.Timestamp,
+		TimestampStr: s.TimestampStr,
+		Side:         s.Side,
+		SignalType:   s.SignalType,
+		MainPosition: s.MainPosition,
+		Price:        s.Price,
+		Quantity:     s.Quantity,
+		CandleID:     s.CandleID,
+		CreatedAt:    s.CreatedAt.UTC().Format(time.RFC3339),
 	}
 }
 

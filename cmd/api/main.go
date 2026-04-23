@@ -8,8 +8,8 @@ import (
 	"github.com/alumieye/eyeapp-backend/internal/auth"
 	"github.com/alumieye/eyeapp-backend/internal/config"
 	"github.com/alumieye/eyeapp-backend/pkg/email"
-	"github.com/alumieye/eyeapp-backend/internal/orders"
 	"github.com/alumieye/eyeapp-backend/internal/repositories"
+	"github.com/alumieye/eyeapp-backend/internal/signals"
 	"github.com/alumieye/eyeapp-backend/internal/verification"
 	"github.com/alumieye/eyeapp-backend/middlewares"
 	"github.com/alumieye/eyeapp-backend/pkg/db"
@@ -107,7 +107,7 @@ var ReposModule = fx.Module("repos",
 		repositories.NewIdentityRepository,
 		repositories.NewSessionRepository,
 		repositories.NewVerificationRepository,
-		repositories.NewOrderRepository,
+		repositories.NewSignalRepository,
 	),
 )
 
@@ -124,12 +124,12 @@ func provideAuthHandler(authService *auth.Service) *auth.Handler {
 	return auth.NewHandler(authService)
 }
 
-func provideOrdersHandler(repo repositories.OrderRepository) *orders.Handler {
-	return orders.NewHandler(repo)
+func provideSignalsHandler(repo repositories.SignalRepository) *signals.Handler {
+	return signals.NewHandler(repo)
 }
 
-func provideRouter(authHandler *auth.Handler, ordersHandler *orders.Handler, tokenService *auth.TokenService) *routes.Router {
-	return routes.NewRouter(authHandler, ordersHandler, tokenService)
+func provideRouter(authHandler *auth.Handler, signalsHandler *signals.Handler, tokenService *auth.TokenService) *routes.Router {
+	return routes.NewRouter(authHandler, signalsHandler, tokenService)
 }
 
 func provideMux(router *routes.Router, log logger.Logger) *chi.Mux {
@@ -194,7 +194,7 @@ func main() {
 		ServicesModule,
 		fx.Provide(
 			provideAuthHandler,
-			provideOrdersHandler,
+			provideSignalsHandler,
 			provideRouter,
 			provideMux,
 		),

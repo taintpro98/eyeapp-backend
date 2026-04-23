@@ -10,10 +10,10 @@ import (
 	"github.com/alumieye/eyeapp-backend/pkg/db"
 )
 
-type OrderFilter struct {
+type SignalFilter struct {
 	Symbol    string
 	Side      string
-	OrderType string
+	SignalType string
 	FromMS    *int64 // UTC epoch ms, inclusive
 	ToMS      *int64 // UTC epoch ms, inclusive
 	// Cursor: last seen (timestamp ms, id) for newest→oldest pagination
@@ -22,27 +22,27 @@ type OrderFilter struct {
 	Limit    int // must be > 0
 }
 
-type OrderRepository interface {
-	List(ctx context.Context, f OrderFilter) ([]*models.Order, error)
+type SignalRepository interface {
+	List(ctx context.Context, f SignalFilter) ([]*models.Signal, error)
 }
 
-type orderPostgres struct {
+type signalPostgres struct {
 	db *sql.DB
 }
 
-func NewOrderRepository(database *db.EyebrokerDB) OrderRepository {
-	return &orderPostgres{db: database.DB}
+func NewSignalRepository(database *db.EyebrokerDB) SignalRepository {
+	return &signalPostgres{db: database.DB}
 }
 
-func (r *orderPostgres) List(ctx context.Context, f OrderFilter) ([]*models.Order, error) {
+func (r *signalPostgres) List(ctx context.Context, f SignalFilter) ([]*models.Signal, error) {
 	args := []interface{}{}
 	conds := []string{}
 	n := 1
 
 	base := `
-		SELECT o.id, a.symbol, o.timestamp, o.timestamp_str, o.side, o.order_type,
+		SELECT o.id, a.symbol, o.timestamp, o.timestamp_str, o.side, o.signal_type,
 		       o.main_position, o.price, o.quantity, o.candle_id, o.created_at
-		FROM orders o
+		FROM signals o
 		JOIN assets a ON a.id = o.asset_id`
 
 	if f.Symbol != "" {
@@ -55,9 +55,9 @@ func (r *orderPostgres) List(ctx context.Context, f OrderFilter) ([]*models.Orde
 		args = append(args, f.Side)
 		n++
 	}
-	if f.OrderType != "" {
-		conds = append(conds, fmt.Sprintf("o.order_type = $%d", n))
-		args = append(args, f.OrderType)
+	if f.SignalType != "" {
+		conds = append(conds, fmt.Sprintf("o.signal_type = $%d", n))
+		args = append(args, f.SignalType)
 		n++
 	}
 	if f.FromMS != nil {
@@ -89,25 +89,25 @@ func (r *orderPostgres) List(ctx context.Context, f OrderFilter) ([]*models.Orde
 	}
 	defer rows.Close()
 
-	var orders []*models.Order
+	var signals []*models.Signal
 	for rows.Next() {
-		o := &models.Order{}
+		s := &models.Signal{}
 		if err := rows.Scan(
-			&o.ID,
-			&o.Symbol,
-			&o.Timestamp,
-			&o.TimestampStr,
-			&o.Side,
-			&o.OrderType,
-			&o.MainPosition,
-			&o.Price,
-			&o.Quantity,
-			&o.CandleID,
-			&o.CreatedAt,
+			&s.ID,
+			&s.Symbol,
+			&s.Timestamp,
+			&s.TimestampStr,
+			&s.Side,
+			&s.SignalType,
+			&s.MainPosition,
+			&s.Price,
+			&s.Quantity,
+			&s.CandleID,
+			&s.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
-		orders = append(orders, o)
+		signals = append(signals, s)
 	}
-	return orders, rows.Err()
+	return signals, rows.Err()
 }
