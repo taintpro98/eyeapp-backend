@@ -100,7 +100,9 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest, _ RequestCo
 		return nil, err
 	}
 
-	_ = s.verificationSvc.CreateAndSendToken(ctx, newUser.ID, emailAddr)
+	if err := s.verificationSvc.CreateAndSendToken(ctx, newUser.ID, emailAddr); err != nil {
+		s.log.Warn(ctx, "failed to send verification email after registration", logger.Err(err))
+	}
 
 	return &RegisterResponse{
 		Message: "Registration successful. Please verify your email before logging in.",

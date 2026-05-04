@@ -2,11 +2,13 @@ package routes
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/alumieye/eyeapp-backend/internal/apierrors"
 	"github.com/alumieye/eyeapp-backend/internal/auth"
 	"github.com/alumieye/eyeapp-backend/internal/signals"
 	"github.com/alumieye/eyeapp-backend/middlewares"
+	"github.com/alumieye/eyeapp-backend/pkg/ratelimit"
 	"github.com/go-chi/chi/v5"
 
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -59,14 +61,21 @@ func (r *Router) Setup() *chi.Mux {
 		}),
 	))
 
+	// Rate limiters — per IP+path, different limits per endpoint
+	loginLimiter    := ratelimit.NewInMemory(ratelimit.Config{Limit: 5,  Window: time.Minute})
+	registerLimiter := ratelimit.NewInMemory(ratelimit.Config{Limit: 5,  Window: time.Minute})
+	refreshLimiter  := ratelimit.NewInMemory(ratelimit.Config{Limit: 10, Window: time.Minute})
+	resendLimiter   := ratelimit.NewInMemory(ratelimit.Config{Limit: 3,  Window: time.Minute})
+	verifyLimiter   := ratelimit.NewInMemory(ratelimit.Config{Limit: 10, Window: time.Minute})
+
 	// v1 API
 	r.mux.Route("/api/v1", func(v1 chi.Router) {
 		// Auth endpoints (public)
-		v1.Post("/auth/register", r.authHandler.Register)
-		v1.Post("/auth/login", r.authHandler.Login)
-		v1.Post("/auth/verify-email", r.authHandler.VerifyEmail)
-		v1.Post("/auth/resend-verification-email", r.authHandler.ResendVerificationEmail)
-		v1.Post("/auth/refresh", r.authHandler.Refresh)
+		v1.With(middlewares.RateLimit(registerLimiter, ratelimit.KeyByIPAndPath)).Post("/auth/register", r.authHandler.Register)
+		v1.With(middlewares.RateLimit(loginLimiter, ratelimit.KeyByIPAndPath)).Post("/auth/login", r.authHandler.Login)
+		v1.With(middlewares.RateLimit(verifyLimiter, ratelimit.KeyByIPAndPath)).Post("/auth/verify-email", r.authHandler.VerifyEmail)
+		v1.With(middlewares.RateLimit(resendLimiter, ratelimit.KeyByIPAndPath)).Post("/auth/resend-verification-email", r.authHandler.ResendVerificationEmail)
+		v1.With(middlewares.RateLimit(refreshLimiter, ratelimit.KeyByIPAndPath)).Post("/auth/refresh", r.authHandler.Refresh)
 		v1.Post("/auth/logout", r.authHandler.Logout)
 
 		// Protected endpoints
