@@ -73,25 +73,8 @@ func provideDatabase(lc fx.Lifecycle, cfg *config.Config, log logger.Logger) *db
 	return database
 }
 
-func provideEyebrokerDatabase(lc fx.Lifecycle, cfg *config.Config, log logger.Logger) *db.EyebrokerDB {
-	pool := db.PoolConfig{
-		MaxOpenConns:    cfg.DBMaxOpenConns,
-		MaxIdleConns:    cfg.DBMaxIdleConns,
-		ConnMaxLifetime: cfg.DBConnMaxLifetime,
-	}
-	raw, err := db.Connect(cfg.EyebrokerDatabaseURL, pool)
-	if err != nil {
-		log.Error(context.Background(), "Failed to connect to eyebroker database", logger.Err(err))
-		panic(err)
-	}
-	eyebrokerDB := &db.EyebrokerDB{DB: raw.DB}
-	lc.Append(fx.Hook{
-		OnStop: func(ctx context.Context) error {
-			return eyebrokerDB.Close()
-		},
-	})
-	log.Info(context.Background(), "Connected to eyebroker database")
-	return eyebrokerDB
+func provideSignalRepository(cfg *config.Config) repositories.SignalRepository {
+	return repositories.NewSignalHTTPRepository(cfg.EyebrokerAPIURL)
 }
 
 func provideEmailSender(log logger.Logger, cfg *config.Config) email.Sender {
@@ -107,7 +90,7 @@ var ReposModule = fx.Module("repos",
 		repositories.NewIdentityRepository,
 		repositories.NewSessionRepository,
 		repositories.NewVerificationRepository,
-		repositories.NewSignalRepository,
+		provideSignalRepository,
 	),
 )
 
@@ -127,6 +110,7 @@ func provideAuthHandler(authService *auth.Service) *auth.Handler {
 func provideSignalsHandler(repo repositories.SignalRepository) *signals.Handler {
 	return signals.NewHandler(repo)
 }
+
 
 func provideRouter(authHandler *auth.Handler, signalsHandler *signals.Handler, tokenService *auth.TokenService) *routes.Router {
 	return routes.NewRouter(authHandler, signalsHandler, tokenService)
@@ -188,7 +172,6 @@ func main() {
 			provideConfig,
 			provideLogger,
 			provideDatabase,
-			provideEyebrokerDatabase,
 		),
 		ReposModule,
 		ServicesModule,

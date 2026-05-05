@@ -53,10 +53,10 @@ type yamlConfig struct {
 }
 
 type Config struct {
-	AppEnv              string
-	Port                string
-	DatabaseURL         string
-	EyebrokerDatabaseURL string
+	AppEnv          string
+	Port            string
+	DatabaseURL     string
+	EyebrokerAPIURL string
 	JWTSecret       string
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
@@ -76,10 +76,11 @@ func Load() *Config {
 	_ = godotenv.Load() // load .env if present (no-op if missing)
 
 	cfg := &Config{
-		AppEnv:                 "development",
-		Port:                   "8080",
-		DatabaseURL:            "",
-		JWTSecret:              "",
+		AppEnv:          "development",
+		Port:            "8080",
+		DatabaseURL:     "",
+		EyebrokerAPIURL: "http://localhost:8001",
+		JWTSecret:       "",
 		AccessTokenTTL:         15 * time.Minute,
 		RefreshTokenTTL:        720 * time.Hour,
 		LogLevel:               "info",
@@ -147,17 +148,8 @@ func Load() *Config {
 		)
 	}
 	cfg.JWTSecret = getEnv("JWT_SECRET", "change_me_in_production")
-	if u := getEnv("EYEBROKER_DATABASE_URL", ""); u != "" {
-		cfg.EyebrokerDatabaseURL = u
-	} else {
-		cfg.EyebrokerDatabaseURL = buildDatabaseURL(
-			getEnv("EYEBROKER_DB_HOST", "localhost"),
-			getEnv("EYEBROKER_DB_PORT", "5433"),
-			getEnv("EYEBROKER_DB_USER", "root"),
-			getEnv("EYEBROKER_DB_PASSWORD", "123456"),
-			getEnv("EYEBROKER_DB_NAME", "eyebroker"),
-			getEnv("EYEBROKER_DB_SSL_MODE", "disable"),
-		)
+	if u := getEnv("EYEBROKER_API_URL", ""); u != "" {
+		cfg.EyebrokerAPIURL = u
 	}
 	cfg.ResendAPIKey = getEnv("RESEND_API_KEY", "")
 	cfg.EmailFrom = getEnv("EMAIL_FROM", "ALumiEye <onboarding@resend.dev>")
