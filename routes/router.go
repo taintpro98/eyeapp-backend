@@ -83,7 +83,7 @@ func (r *Router) Setup() *chi.Mux {
 			protected.Use(middlewares.Auth(r.tokenService))
 			protected.Get("/me", r.authHandler.Me)
 			protected.Get("/users/{id}", r.handleGetUser)
-			protected.Get("/signals", r.signalsHandler.List)
+			protected.Get("/signals/{marketId}", r.signalsHandler.List)
 		})
 	})
 

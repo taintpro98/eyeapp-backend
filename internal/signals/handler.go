@@ -8,11 +8,12 @@ import (
 	"github.com/alumieye/eyeapp-backend/internal/apierrors"
 	"github.com/alumieye/eyeapp-backend/internal/models"
 	"github.com/alumieye/eyeapp-backend/internal/repositories"
+	"github.com/go-chi/chi/v5"
 )
 
 const (
-	defaultLimit = 50
-	maxLimit     = 200
+	defaultLimit = 15
+	maxLimit     = 20
 )
 
 type Handler struct {
@@ -39,38 +40,33 @@ type signalResponse struct {
 }
 
 type listResponse struct {
-	Total  int              `json:"total"`
-	Items  []signalResponse `json:"items"`
-	Limit  int              `json:"limit"`
-	Offset int              `json:"offset"`
+	Total int              `json:"total"`
+	Items []signalResponse `json:"items"`
 }
 
-// List handles GET /api/v1/signals
+// List handles GET /api/v1/signals/{marketId}
 // @Summary List signals
 // @Description List trade signals from eyebroker, paginated by offset
 // @Tags signals
 // @Produce json
 // @Security BearerAuth
-// @Param market_id query int    true  "Market: 1=crypto 2=vnstock"
-// @Param limit     query int    false "Page size (default 50, max 200)"
-// @Param offset    query int    false "Number of items to skip (default 0)"
+// @Param marketId path  int    true  "Market: 1=crypto 2=vnstock"
+// @Param limit    query int    false "Page size (default 15, max 20)"
+// @Param offset   query int    false "Number of items to skip (default 0)"
+// @Param symbol   query string false "Filter by symbol, e.g. VNM (case-insensitive)"
 // @Success 200 {object} listResponse
 // @Failure 400 {object} apierrors.ErrorResponse
 // @Failure 401 {object} apierrors.ErrorResponse
 // @Failure 500 {object} apierrors.ErrorResponse
-// @Router /api/v1/signals [get]
+// @Router /api/v1/signals/{marketId} [get]
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
-	// market_id (required)
-	marketIDStr := q.Get("market_id")
-	if marketIDStr == "" {
-		apierrors.ValidationError(w, "market_id is required (1=crypto, 2=vnstock)")
-		return
-	}
+	// marketId (path param)
+	marketIDStr := chi.URLParam(r, "marketId")
 	marketID, err := strconv.Atoi(marketIDStr)
 	if err != nil || (marketID != 1 && marketID != 2) {
-		apierrors.ValidationError(w, "market_id must be 1 (crypto) or 2 (vnstock)")
+		apierrors.ValidationError(w, "marketId must be 1 (crypto) or 2 (vnstock)")
 		return
 	}
 
@@ -104,6 +100,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		MarketID: marketID,
 		Limit:    limit,
 		Offset:   offset,
+		Symbol:   q.Get("symbol"),
 	})
 	if err != nil {
 		apierrors.InternalError(w)
@@ -116,10 +113,8 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	apierrors.JSON(w, http.StatusOK, listResponse{
-		Total:  result.Total,
-		Items:  items,
-		Limit:  limit,
-		Offset: offset,
+		Total: result.Total,
+		Items: items,
 	})
 }
 

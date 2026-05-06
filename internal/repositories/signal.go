@@ -16,6 +16,7 @@ type SignalFilter struct {
 	MarketID int
 	Limit    int
 	Offset   int
+	Symbol   string
 }
 
 type SignalListResult struct {
@@ -61,14 +62,16 @@ type eyebrokerSignal struct {
 }
 
 func (c *eyebrokerClient) List(ctx context.Context, f SignalFilter) (*SignalListResult, error) {
-	u, err := url.Parse(c.baseURL + "/v1/api/market/signals")
+	u, err := url.Parse(c.baseURL + "/v1/api/market/" + strconv.Itoa(f.MarketID) + "/signals")
 	if err != nil {
 		return nil, fmt.Errorf("eyebroker: parse url: %w", err)
 	}
 	q := u.Query()
-	q.Set("market_id", strconv.Itoa(f.MarketID))
 	q.Set("limit", strconv.Itoa(f.Limit))
 	q.Set("offset", strconv.Itoa(f.Offset))
+	if f.Symbol != "" {
+		q.Set("symbol", f.Symbol)
+	}
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
