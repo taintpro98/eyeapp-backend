@@ -8,6 +8,7 @@ import (
 	"github.com/alumieye/eyeapp-backend/internal/auth"
 	"github.com/alumieye/eyeapp-backend/internal/config"
 	"github.com/alumieye/eyeapp-backend/pkg/email"
+	"github.com/alumieye/eyeapp-backend/internal/positions"
 	"github.com/alumieye/eyeapp-backend/internal/repositories"
 	"github.com/alumieye/eyeapp-backend/internal/signals"
 	"github.com/alumieye/eyeapp-backend/internal/verification"
@@ -77,6 +78,10 @@ func provideSignalRepository(cfg *config.Config) repositories.SignalRepository {
 	return repositories.NewSignalHTTPRepository(cfg.EyebrokerAPIURL)
 }
 
+func providePositionRepository(cfg *config.Config) repositories.PositionRepository {
+	return repositories.NewPositionHTTPRepository(cfg.EyebrokerAPIURL)
+}
+
 func provideEmailSender(log logger.Logger, cfg *config.Config) email.Sender {
 	if cfg.ResendAPIKey != "" {
 		return email.NewResendSender(log, cfg.ResendAPIKey, cfg.EmailFrom)
@@ -91,6 +96,7 @@ var ReposModule = fx.Module("repos",
 		repositories.NewSessionRepository,
 		repositories.NewVerificationRepository,
 		provideSignalRepository,
+		providePositionRepository,
 	),
 )
 
@@ -111,9 +117,12 @@ func provideSignalsHandler(repo repositories.SignalRepository) *signals.Handler 
 	return signals.NewHandler(repo)
 }
 
+func providePositionsHandler(repo repositories.PositionRepository) *positions.Handler {
+	return positions.NewHandler(repo)
+}
 
-func provideRouter(authHandler *auth.Handler, signalsHandler *signals.Handler, tokenService *auth.TokenService) *routes.Router {
-	return routes.NewRouter(authHandler, signalsHandler, tokenService)
+func provideRouter(authHandler *auth.Handler, signalsHandler *signals.Handler, positionsHandler *positions.Handler, tokenService *auth.TokenService) *routes.Router {
+	return routes.NewRouter(authHandler, signalsHandler, positionsHandler, tokenService)
 }
 
 func provideMux(router *routes.Router, log logger.Logger) *chi.Mux {
@@ -178,6 +187,7 @@ func main() {
 		fx.Provide(
 			provideAuthHandler,
 			provideSignalsHandler,
+			providePositionsHandler,
 			provideRouter,
 			provideMux,
 		),
