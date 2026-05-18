@@ -25,21 +25,22 @@ func NewHandler(repo repositories.PositionRepository) *Handler {
 }
 
 type positionResponse struct {
-	ID            int64   `json:"id"`
-	Symbol        string  `json:"symbol"`
-	MarketID      int     `json:"market_id"`
-	Side          string  `json:"side"`
-	Status        string  `json:"status"`
-	Term          string  `json:"term"`
-	Active        bool    `json:"active"`
-	Timestamp     int64   `json:"timestamp"`
-	TimestampStr  string  `json:"timestamp_str"`
-	AvgPrice      float64 `json:"avg_price"`
-	Size          float64 `json:"size"`
-	Capacity      float64 `json:"capacity"`
-	DriveCandleID int64   `json:"drive_candle_id"`
-	CreatedAt     string  `json:"created_at"`
-	UpdatedAt     string  `json:"updated_at"`
+	ID            int64    `json:"id"`
+	Symbol        string   `json:"symbol"`
+	MarketID      int      `json:"market_id"`
+	Side          string   `json:"side"`
+	Status        string   `json:"status"`
+	Term          string   `json:"term"`
+	Active        bool     `json:"active"`
+	Timestamp     int64    `json:"timestamp"`
+	TimestampStr  string   `json:"timestamp_str"`
+	AvgPrice      float64  `json:"avg_price"`
+	Size          float64  `json:"size"`
+	Capacity      float64  `json:"capacity"`
+	RealizedPnl   *float64 `json:"realized_pnl"`
+	DriveCandleID int64    `json:"drive_candle_id"`
+	CreatedAt     string   `json:"created_at"`
+	UpdatedAt     string   `json:"updated_at"`
 }
 
 type orderResponse struct {
@@ -51,6 +52,8 @@ type orderResponse struct {
 	OrderType    string  `json:"order_type"`
 	Price        float64 `json:"price"`
 	Quantity     float64 `json:"quantity"`
+	OrderPnl     float64 `json:"order_pnl"`
+	PositionPnl  float64 `json:"position_pnl"`
 	SignalID     *int64  `json:"signal_id"`
 	CreatedAt    string  `json:"created_at"`
 }
@@ -192,6 +195,8 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 			OrderType:    o.OrderType,
 			Price:        o.Price,
 			Quantity:     o.Quantity,
+			OrderPnl:     o.OrderPnl,
+			PositionPnl:  o.PositionPnl,
 			SignalID:     o.SignalID,
 			CreatedAt:    o.CreatedAt,
 		}
@@ -224,6 +229,7 @@ func toResponse(p *models.Position) positionResponse {
 		AvgPrice:      p.AvgPrice,
 		Size:          p.Size,
 		Capacity:      p.Capacity,
+		RealizedPnl:   p.RealizedPnl,
 		DriveCandleID: p.DriveCandleID,
 		CreatedAt:     p.CreatedAt,
 		UpdatedAt:     p.UpdatedAt,

@@ -49,21 +49,22 @@ type eyebrokerPositionListResponse struct {
 }
 
 type eyebrokerPosition struct {
-	ID            int64   `json:"id"`
-	Symbol        string  `json:"symbol"`
-	MarketID      int     `json:"market_id"`
-	Side          string  `json:"side"`
-	Status        string  `json:"status"`
-	Term          string  `json:"term"`
-	Active        bool    `json:"active"`
-	Timestamp     int64   `json:"timestamp"`
-	TimestampStr  string  `json:"timestamp_str"`
-	AvgPrice      float64 `json:"avg_price"`
-	Size          float64 `json:"size"`
-	Capacity      float64 `json:"capacity"`
-	DriveCandleID int64   `json:"drive_candle_id"`
-	CreatedAt     string  `json:"created_at"`
-	UpdatedAt     string  `json:"updated_at"`
+	ID            int64    `json:"id"`
+	Symbol        string   `json:"symbol"`
+	MarketID      int      `json:"market_id"`
+	Side          string   `json:"side"`
+	Status        string   `json:"status"`
+	Term          string   `json:"term"`
+	Active        bool     `json:"active"`
+	Timestamp     int64    `json:"timestamp"`
+	TimestampStr  string   `json:"timestamp_str"`
+	AvgPrice      float64  `json:"avg_price"`
+	Size          float64  `json:"size"`
+	Capacity      float64  `json:"capacity"`
+	RealizedPnl   *float64 `json:"realized_pnl"`
+	DriveCandleID int64    `json:"drive_candle_id"`
+	CreatedAt     string   `json:"created_at"`
+	UpdatedAt     string   `json:"updated_at"`
 }
 
 type eyebrokerPositionDetail struct {
@@ -80,7 +81,9 @@ type eyebrokerOrder struct {
 	OrderType    string  `json:"order_type"`
 	Price        float64 `json:"price"`
 	Quantity     float64 `json:"quantity"`
-	SignalID      *int64  `json:"signal_id"`
+	OrderPnl     float64 `json:"order_pnl"`
+	PositionPnl  float64 `json:"position_pnl"`
+	SignalID     *int64  `json:"signal_id"`
 	CreatedAt    string  `json:"created_at"`
 }
 
@@ -98,6 +101,7 @@ func toModelPosition(p eyebrokerPosition) *models.Position {
 		AvgPrice:      p.AvgPrice,
 		Size:          p.Size,
 		Capacity:      p.Capacity,
+		RealizedPnl:   p.RealizedPnl,
 		DriveCandleID: p.DriveCandleID,
 		CreatedAt:     p.CreatedAt,
 		UpdatedAt:     p.UpdatedAt,
@@ -186,6 +190,8 @@ func (c *positionHTTPClient) Get(ctx context.Context, marketID int, positionID i
 			OrderType:    o.OrderType,
 			Price:        o.Price,
 			Quantity:     o.Quantity,
+			OrderPnl:     o.OrderPnl,
+			PositionPnl:  o.PositionPnl,
 			SignalID:     o.SignalID,
 			CreatedAt:    o.CreatedAt,
 		}
